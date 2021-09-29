@@ -4,6 +4,7 @@ go 1.12
 
 //replace github.com/nanoscopic/controlfloor_auth => ../controlfloor_auth
 replace github.com/nanoscopic/controlfloor/docs => ./docs
+replace github.com/nanoscopic/controlfloor_auth => /Users/rohitsaini/Documents/RemoteControl/controlfloor_auth_none
 
 //replace github.com/nanoscopic/ujsonin/v2 => ../ujsonin/v2
 
