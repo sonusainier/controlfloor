@@ -4,6 +4,7 @@ import (
     "crypto/rand"
     "fmt"
     "encoding/hex"
+    "io"
     mrand "math/rand"
     "net/http"
     "strconv"
@@ -159,10 +160,18 @@ func (self *ReqTracker) processResp( msgType int, reqText []byte ) {
 
 const (
     CMKick = iota
+    CMFrame = iota
 )
 type ClientMsg struct {
     msgType int
     msg     string
+}
+
+
+type FrameMsg struct {
+    msg int
+    frame []byte
+    frameType int
 }
 
 // @Description Provider - Image Stream Websocket
@@ -211,31 +220,43 @@ func (self *ProviderHandler) handleImgProvider( c *gin.Context ) {
             }
         }()
     }*/
-    var lock sync.Mutex
-    latestFrame := []byte{}
-    frameType := 0
-    frameReady := make( chan bool, 5 )
+    
+    frameChan := make( chan FrameMsg, 20 )
+    
     // Consume incoming frames as fast as possible only ever holding onto the latest frame
     go func() {
+        ingestDone := false
         for {
+            if ingestDone == true { break }
             t, data, err := conn.ReadMessage()
             //fmt.Printf("Got frame\n")
             if err != nil {
                 conn = nil
-                frameReady <- true
+                frameChan <- FrameMsg{
+                    msg: CMKick,
+                    frame: []byte{},
+                    frameType: 0,
+                }
+                fmt.Printf("Frame receive error: %s\n", err )
                 break
             }
-            lock.Lock()
-            latestFrame = data
-            frameType = t
-            lock.Unlock()
-            frameReady <- false
+            frameChan <- FrameMsg{
+                msg: CMFrame,
+                frame: data,
+                frameType: t,
+            }
             
             select {
                 case msg := <- msgChan:
                     outSocket.WriteMessage( ws.TextMessage, []byte(msg.msg) )
                     if msg.msgType == CMKick {
-                        frameReady <- true
+                        fmt.Printf("Got kick from client; ending ingest\n")
+                        frameChan <- FrameMsg{
+                            msg: CMKick,
+                            frame: []byte{},
+                            frameType: 0,
+                        }
+                        ingestDone = true
                         break
                     }
                 default:
@@ -260,68 +281,112 @@ func (self *ProviderHandler) handleImgProvider( c *gin.Context ) {
                 
                 bpsStr := bpsNode.String()
                 bps, _ := strconv.ParseInt(bpsStr, 10, 64)
-                
-                fpsMax := ( float64(bps) / float64(avgFrame) ) * 0.75
-                delayMs := float32(1000) / float32(fpsMax)
-                //fmt.Printf("fpsMax: %d ; delayMs: %d\n", fpsMax, delayMs )
-                frameSleep = int32( delayMs )
+                if bps != 10000000 {
+                    fpsMax := ( float64(bps) / float64(avgFrame) ) * 0.75
+                    delayMs := float32(1000) / float32(fpsMax)
+                    //fmt.Printf("fpsMax: %d ; delayMs: %d\n", fpsMax, delayMs )
+                    frameSleep = int32( delayMs )
+                }
             }
         }
     }()
     
     // Whenever a frame is ready send the latest frame
     for {
-        finished := <- frameReady
-        if finished {
-            break
+        var frame FrameMsg
+        gotFrame := false
+        emptied := false
+        abort := false
+        for {
+            select {
+                case msg := <- frameChan:
+                    if msg.msg == CMKick {
+                        abort = true 
+                    } else {
+                        gotFrame = true
+                        frame = msg
+                    }
+                    break
+                default:
+                    emptied = true
+            }
+            if emptied { break }
         }
-        lock.Lock()
-        toSend := latestFrame
-        t := frameType
-        latestFrame = []byte{} // Set to empty to prevent sending a replaced frame
-        lock.Unlock()
         
-        // Don't send a used frame
-        if len( toSend ) == 0 {
+        if !gotFrame {
+            time.Sleep( time.Millisecond * time.Duration( 20 ) )
             continue
         }
+        
+        if abort { 
+            fmt.Printf("Frame sender got CMKick. Aborting\n")
+            break
+        }
+        toSend := frame.frame
+        t := frame.frameType
+        
         //fmt.Printf("Sending frame to client\n")
         
-        if t != ws.TextMessage {
-            nowMilli := time.Now().UnixMilli() + clientOffset
-            nowBytes := []byte( fmt.Sprintf("%*d",100,nowMilli) )
-            toSend = append( toSend, nowBytes... )
+        if t == ws.TextMessage {
+            // Just send the message and continue
+            outSocket.WriteMessage( ws.TextMessage, frame.frame )
+            continue
         }
         
-        err = outSocket.WriteMessage( t, toSend )
+        var timeBeforeSend int64
+        var writer io.WriteCloser
+        var err error
+        if t != ws.TextMessage {
+            writer, err = outSocket.NextWriter( ws.TextMessage )
+            if err == nil {
+                nowMilli := time.Now().UnixMilli() + clientOffset
+                nowBytes := []byte( strconv.FormatInt( nowMilli, 10 ) )
+                writer.Write( nowBytes )
+                writer.Close()
+                
+                writer, err = outSocket.NextWriter( t )
+                if err == nil {
+                    timeBeforeSend = time.Now().UnixMilli()
+                    nowMilli = timeBeforeSend + clientOffset
+                    
+                    nowBytes = []byte( fmt.Sprintf("%*d",100,nowMilli) )
+                    toSend = append( toSend, nowBytes... )
+                }
+            }
+        }
         if err != nil {
+            fmt.Printf("Error creating outSocket writer: %s\n", err )
             outSocket = nil
             provConn.stopImgStream( udid )
             break
         }
         
-        // Empty the ready message channel
-        done := false
-        exitLoop := false
-        for {
-            select {
-                case finished = <- frameReady:
-                    if finished {
-                        done = true
-                    }
-                default:
-                    exitLoop = true
-            }
-            if exitLoop || done {
-                break
+        _, err = writer.Write( toSend )
+        if err == nil {
+            err = writer.Close()
+        }
+        if err != nil {
+            fmt.Printf("Error writing frame: %s\n", err )
+            outSocket = nil
+            provConn.stopImgStream( udid )
+            frameChan <- FrameMsg{
+                msg: CMKick,
+                frame: []byte{},
+                frameType: 0,
             }
         }
-        if done { break }
         
-        // Sleep for the time expected for the client to receive the frame
-        if frameSleep != 0 {
-            time.Sleep( time.Millisecond * time.Duration( frameSleep ) )
-        }
+        if frameSleep == 0 { continue }
+        
+        timeAfterSend := time.Now().UnixMilli()
+        
+        timeSending := int32( timeAfterSend - timeBeforeSend )
+        
+        if timeSending > frameSleep { continue }
+        
+        milliToSleep := frameSleep - timeSending
+        
+        time.Sleep( time.Millisecond * time.Duration( milliToSleep ) )
     }
     
     self.devTracker.deleteClient( udid )
