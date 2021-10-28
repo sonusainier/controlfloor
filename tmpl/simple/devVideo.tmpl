@@ -67,6 +67,66 @@
     background: #e8e7b0;
     border: solid 2px blue;
   }
+
+  //==============================
+html, body {
+    min-height: 100% !important;
+    height: 100%;
+    margin: 0;
+}
+
+body {
+  background-color:#efeeee;
+  padding: 8px;
+}
+
+button {
+  display: block;
+  margin: auto;
+  position: relative;
+  top: 40%;
+  z-index: 1002;
+  padding: 10px;
+  font-size: 16px;
+  background-color: #000f1c;
+  border-radius: 3px;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+video {
+  width: 100%;
+}
+
+/* #videos {
+  display: grid;
+  grid-gap: 16px;
+  width: 100%;
+  grid-template-columns: 1fr 3fr;
+} */
+
+#videos {
+  width: 100%;
+}
+
+/* #self-view {
+  grid-column: 1;
+  background-color: black;
+} */
+
+/* #remote-view {
+  grid-column: 2;
+  background-color: black;
+  height: 95vh;
+} */
+
+#remote-view {
+  background-color: black;
+  height: 95vh;
+}
+
+  //==============================
 </style>
 <script>
   function getel( id ) {
@@ -259,6 +319,8 @@
   capture2[39] = 39; // ' - quick search in firefox
   capture2[47] = 47; // / - quick search also
   window.addEventListener("load", function(evt) {
+    
+
     filltext( "d_name", info.DeviceName );
     filltext( "d_model", info.ArtworkDeviceProductDescription );
     filltext( "d_iosversion", info.ProductVersion );
@@ -318,10 +380,17 @@
     }
     
     var idleSeconds = 0;
-    
+    var remoteView = document.getElementById("remote-view");
     //vidbox.style.width  = ( displayWid + 100 ) + "px";
     canvas.width      = displayWid;
     canvas.height     = displayHeg;
+
+    //Setting WebRTC remote view height and width in px
+    remoteView.width  = displayWid;
+    remoteView.height = displayHeg;
+    remoteView.style.width = displayWid + "px";
+    remoteView.style.height = displayHeg + "px";
+
     getel("mid").style.width = displayWid + "px";
     under.style.top = displayHeg + "px";
     under.style.width = displayWid + "px";
@@ -432,114 +501,7 @@
       } else console.log( "key2 " + key );
     }
     
-    var wsprot = ( document.location.protocol == 'https:' ) ? "wss" : "ws"; 
-    var url = wsprot+"://"+document.location.host+"/device/imgStream?udid={{ html .udid }}&rid={{ html .rid }}";
-    ws = new WebSocket( url );
-    ws.onopen = function( event ) {
-        console.log("Websocket open");
-    }
-    ws.onclose = function( event ) {
-        console.log("Websocket closed");
-        ws = null;
-    }
-    ws.onmessage = function( event ) {
-        if( event.data instanceof Blob ) {
-          var recvTime = new Date().getTime();
-          var image = new Image();
-          var url;
-          image.onload = function() {
-            URL.revokeObjectURL( url );
-            ctx.drawImage(image, 0, 0, Math.floor(displayWid)+1, Math.floor(displayHeg) );
-          };
-          image.onerror = function( e ) {
-            console.log('Error during loading image:', e);
-          }
-          var blob = event.data;
-          var imgData = blob.slice( 0, -100, "image/jpeg" );
-          blob.slice( -100, blob.size, "" ).text().then( serverTimeStr => {
-              //console.log( "serverTimeStr " + serverTimeStr );
-              var serverTime = parseInt( serverTimeStr );
-              var diff = recvTime - serverTime;
-              if( diff < 0 ) diff = 0;
-              //console.log( recvTime + " - " + serverTime + " = " + diff );
-              
-              //var bpms = (blob.size-100) / diff;
-              //var bps = bpms * 1000;
-              //console.log( "bps " + bps );
-              sizes.push( blob.size );
-              times.push( diff );
-              if( sizes.length == 5 ) {
-                  var totSize = 0;
-                  var totTime = 0;
-                  for( var i=0;i<5;i++ ) {
-                      totSize += sizes[i];
-                      totTime += times[i];
-                  }
-                  var bps = Math.floor( totSize / totTime * 1000 );
-                  if( bps > 10000000 ) {
-                      bps = 10000000;
-                  }
-                  console.log("bps " + bps);
-                  sizes = [];
-                  times = [];
-                  var avgFrame = Math.floor( totSize / 5 );
-                  ws.send( "{\"bps\":\"" + bps + "\",\"avgFrame\":\"" + avgFrame + "\"}" );
-              }
-          } );
-          
-          url = URL.createObjectURL( blob );
-          image.src = url;
-        }
-        else {
-            var data = event.data;
-            if( typeof data === 'string' ) {
-                var recvTime = new Date().getTime();
-                var l1 = data[0];
-                if( l1 >= '0' && l1 <= '9' ) {
-                    var serverTime = parseInt( data );
-                    var diff = recvTime - serverTime;
-                    console.log( "latency:" + diff );
-                }
-                else if( l1 == '{' ) {
-                    var json = JSON.parse( data );
-                    var type = json.type;
-                    if( type ) {
-                        if( type == 'kick' ) {
-                            alert("You have been kicked");
-                            document.location.href = "/";
-                        }
-                        if( type == 'sync' ) {
-                            var serverTime = json.serverTime;
-                            //console.log( "serverTime is " + serverTime );
-                            var ourTime = Date.now();//new Date().getTime();
-                            //console.log( "ourTime is " + ourTime );
-                            
-                            var diff = ourTime - serverTime;
-                            
-                            ws.send( "{\"clientTime\":\"" + ourTime + "\",\"sentTime\":\"" + serverTime + "\"}" );
-                            
-                            console.log( "latency + time offset = " + diff );
-                        }
-                    }
-                } else {
-                    var parts = data.split(',');
-                    if( parts[0] == 'sync' ) {
-                        var serverTime = parts[1];
-                        var ourTime = Date.now();//new Date().getTime();
-                        var diff = ourTime - serverTime;
-                            
-                        ws.send( "{\"clientTime\":\"" + ourTime + "\",\"sentTime\":\"" + serverTime + "\"}" );
-                        
-                        console.log( "latency + time offset = " + diff );
-                    }
-                }
-            }
-            //console.log( event.data );
-        }
-    }
-    ws.onerror = function( event ) {
-        console.log( "Error: ", event.data );
-    }
+    
     if( idleTimeout ) {
       setInterval( function() {
         idleSeconds += 3;
@@ -555,6 +517,217 @@
       }
     }
   });
+
+//==============================================================================
+   (function () {
+    "use strict";
+  
+    const MESSAGE_TYPE = {
+      SDP: 'SDP',
+      CANDIDATE: 'CANDIDATE',
+    }
+  
+    document.addEventListener('click', async (event) => {
+      if (event.target.id === 'start') {
+        startChat();
+      }
+    });
+
+    // const openStream = async () => {
+    //     const signaling = new WebSocket('wss://a4608db37be3.ngrok.io');
+    //     const peerConnection = createPeerConnection(signaling);
+    //     addMessageHandler(signaling, peerConnection);
+    // }
+  
+    const startChat = async () => {
+      try {
+        //const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        showChatRoom();
+  
+        const signaling = new WebSocket('ws://192.168.1.6:9090');
+        const peerConnection = createPeerConnection(signaling);
+  
+      
+        addMessageHandler(signaling, peerConnection);
+  
+        //stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
+        //document.getElementById('self-view').srcObject = stream;
+  
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    const dataChannelOptions = {
+      id: 0, 
+    };
+
+    
+  
+    const createPeerConnection = (signaling) => {
+      const peerConnection = new RTCPeerConnection({
+        iceServers: [
+          {
+            urls: "stun:stun-us-2.lambdatest.com:443"
+          },
+          {
+            urls: "stun:stun-ap-2.lambdatest.com:443"
+          },
+          {
+            urls: "stun:stun-eu-2.lambdatest.com:443"
+          },
+          {
+            urls: "turn:stun-us-2.lambdatest.com:443",
+            credential: "foo",
+            username: "bar"
+          },
+          {
+            urls: "turn:stun-ap-2.lambdatest.com:443",
+            credential: "foo",
+            username: "bar"
+          },
+          {
+            urls: "turn:stun-eu-2.lambdatest.com:443",
+            credential: "foo",
+            username: "bar"
+          },
+          {
+              urls: "stun:stun-us-1.lambdatest.com:80"
+          },
+          {
+              urls: "stun:stun-us-1.lambdatest.com:80?transport=tcp"
+          },
+          {
+              urls: "stun:stun-as-1.lambdatest.com:80"
+          },
+          {
+              urls: "stun:stun-as-1.lambdatest.com:80?transport=tcp"
+          },
+          {
+              urls: "stun:stun-eu-1.lambdatest.com:80"
+          },
+          {
+              urls: "turn:stun-us-1.lambdatest.com:80",
+              credential: "pass123",
+              username: "ltuser"
+          },
+          {
+              urls: "turn:stun-us-1.lambdatest.com:80?transport=tcp",
+              credential: "pass123",
+              username: "ltuser"
+          },
+          {
+              urls: "turn:stun-as-1.lambdatest.com:80",
+              credential: "pass123",
+              username: "ltuser"
+          },
+          {
+              urls: "turn:stun-as-1.lambdatest.com:80?transport=tcp",
+              credential: "pass123",
+              username: "ltuser"
+          },
+          {
+              urls: "turn:stun-eu-1.lambdatest.com:80",
+              credential: "pass123",
+              username: "ltuser"
+          }
+        ],
+      });
+    
+      const channel_dc = peerConnection.createDataChannel('dataChannel',dataChannelOptions);
+      channel_dc.addEventListener('open', () => {
+      console.log('[dc] channel is ready', channel_dc);
+      });
+
+      channel_dc.addEventListener('close', () => {
+      console.log('[dc] channel is closed');
+      });
+
+      peerConnection.addEventListener('datachannel', ({ channel }) => {
+        console.log('[dc] got channel', channel);
+        channel_dc.send("Hi");
+      });
+
+      channel_dc.addEventListener('message', ({ data }) => {
+          console.log('[dc] got message: %s', data.toString());
+      });
+
+      // peerConnection.onnegotiationneeded = async () => {
+      //  await createAndSendOffer(signaling,peerConnection);
+      // };
+  
+      peerConnection.onicecandidate = (iceEvent) => {
+        //console.log(iceEvent.candidate,"CANDIDATE SENT")
+        if (iceEvent && iceEvent.candidate) {
+          signaling.send(JSON.stringify({
+            message_type: MESSAGE_TYPE.CANDIDATE,
+            content: iceEvent.candidate,
+          }));
+        }
+      };
+  
+      peerConnection.ontrack = (event) => {
+        const video = document.getElementById('remote-view');
+        if (!video.srcObject) {
+          video.srcObject = event.streams[0];
+        }
+      };
+
+      return peerConnection;
+    };
+  
+    const addMessageHandler = (signaling, peerConnection) => {
+      signaling.onmessage = async (message) => {
+        const data = JSON.parse(message.data);
+  
+        if (!data) {
+          return;
+        }
+  
+        const { message_type, content } = data;
+        try {
+          if (message_type === MESSAGE_TYPE.CANDIDATE && content) {
+            console.log(content,"CANDIDATE RECEIVED")
+            await peerConnection.addIceCandidate(content);
+          } else if (message_type === MESSAGE_TYPE.SDP) {
+            if (content.type === 'offer') {
+              console.log(content,"OFFER RECEIVED")
+              await peerConnection.setRemoteDescription(content);
+              const answer = await peerConnection.createAnswer();
+              await peerConnection.setLocalDescription(answer);
+              signaling.send(JSON.stringify({
+                message_type: MESSAGE_TYPE.SDP,
+                content: answer,
+              }));
+            } else if (content.type === 'answer') {
+              console.log(content,"ANSWER RECEIVED")
+              await peerConnection.setRemoteDescription(content);
+            } else {
+              console.log('Unsupported SDP type.');
+            }
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      };
+    };
+  
+    const createAndSendOffer = async (signaling, peerConnection) => {
+      const offer = await peerConnection.createOffer();
+      console.log(offer,"OFFER SENT")
+      await peerConnection.setLocalDescription(offer);
+  
+      signaling.send(JSON.stringify({ message_type: MESSAGE_TYPE.SDP, content: offer}));
+    };
+  
+    const showChatRoom = () => {
+      document.getElementById('start').style.display = 'none';
+    };
+  })();
+
+//==============================================================================
+
+
 </script>
 <script defer src="/assets/js/lifecycle.es5.js"></script>
 <script defer>
@@ -583,7 +756,9 @@
                 </td>
                 <td style="position:relative" id="mid">
                     <!--<i id="loading" style="vertical-align: top; position: absolute; left:100px; top:100px; font-size:100px;" class="m-spinner--swirl"></i>-->
-                    <canvas id="canvas" width="375" height="667" style="position:absolute; top:0px; left:0px;"></canvas><br>
+                    <canvas id="canvas" width="375" height="667" style="position:absolute; top:0px; left:0px; z-index: 1000;
+    opacity: 0;"></canvas><br>
+                    <video id="remote-view" autoplay style="position:absolute; top:0px; left:0px;"></video>
                     <div style="display:none; position: absolute; width:375px; font-size: 32px" id="under">
                         <center>
                             <i id='home' class="mdi mdi-home"></i>
@@ -624,5 +799,7 @@
             </tr></table>
         </div>
     </div>
+    
+    <button id="start">Start Mobile Streaming...</button>
 </body>
 </html>
