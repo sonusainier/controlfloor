@@ -500,22 +500,7 @@ video {
         event.preventDefault();
       } else console.log( "key2 " + key );
     }
-    
-    
-    if( idleTimeout ) {
-      setInterval( function() {
-        idleSeconds += 3;
-        if( idleSeconds > idleTimeout ) {
-          ws.close();
-          navigator.sendBeacon( "/device/videoStop?udid="+udid+"&rid="+rid, "" );
-          alert("Inactivity timeout");
-          document.location.href = '/';
-        }
-      }, 3000 );
-      window.onmousemove = function() {
-        idleSeconds = 0;
-      }
-    }
+
   });
 
 //==============================================================================
