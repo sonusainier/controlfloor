@@ -529,7 +529,7 @@ video {
         //const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
         showChatRoom();
   
-        const signaling = new WebSocket('ws://192.168.1.6:9090');
+        const signaling = new WebSocket('ws://stage-signaling.lambdatest.com:9090');
         const peerConnection = createPeerConnection(signaling);
   
       
