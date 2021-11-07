@@ -101,6 +101,19 @@ func (self *ProvRefresh) asText(id int16) string {
 	return fmt.Sprintf("{id:%d,type:\"refresh\",udid:\"%s\"}\n", id, self.udid)
 }
 
+type ProvRestart struct {
+	udid  string
+	onRes func(uj.JNode, []byte)
+}
+
+func (self *ProvRestart) resHandler() func(data uj.JNode, rawData []byte) {
+	return self.onRes
+}
+func (self *ProvRestart) needsResponse() bool { return true }
+func (self *ProvRestart) asText(id int16) string {
+	return fmt.Sprintf("{id:%d,type:\"restart\",udid:\"%s\"}\n", id, self.udid)
+}
+
 type ProvSource struct {
 	udid  string
 	onRes func(uj.JNode, []byte)
