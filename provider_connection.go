@@ -90,6 +90,14 @@ func (self *ProviderConnection) doRefresh(udid string, onDone func(uj.JNode, []b
 	self.provChan <- action
 }
 
+func (self *ProviderConnection) doRestart(udid string, onDone func(uj.JNode, []byte)) {
+	action := &ProvRestart{
+		udid:  udid,
+		onRes: onDone,
+	}
+	self.provChan <- action
+}
+
 func (self *ProviderConnection) doShutdown(onDone func(uj.JNode, []byte)) {
 	msg := &ProvShutdown{
 		onRes: onDone,
