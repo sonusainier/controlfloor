@@ -243,20 +243,16 @@ func (self *DevHandler) handleDeviceRestart(c *gin.Context) {
 		return
 	}
 
-	//
-
 	provId := self.devTracker.getDevProvId(udid)
 	pc := self.devTracker.getProvConn(provId)
 
 	done := make(chan bool)
 
 	restart := "false"
-
 	pc.doRestart(udid, func(_ uj.JNode, json []byte) {
 		root, _ := uj.Parse(json)
 
 		restart = root.Get("restart").String()
-		restart = "true"
 
 		done <- true
 	})
