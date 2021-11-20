@@ -68,6 +68,9 @@ func (self *DevHandler) registerDeviceRoutes() {
 	uAuth.GET("/device/imgStream", func(c *gin.Context) { self.handleImgStream(c) })
 	uAuth.GET("/device/ws", func(c *gin.Context) { self.handleDevWs(c) })
 
+	uAuth.POST("/device/launch", func(c *gin.Context) { self.handleDevLaunch(c) })
+	uAuth.POST("/device/kill", func(c *gin.Context) { self.handleDevKill(c) })
+
 	uAuth.GET("/device/video", self.showDevVideo)
 	uAuth.GET("/device/reserved", self.showDevReservedTest)
 	uAuth.GET("/device/kick", self.devKick)
@@ -267,6 +270,48 @@ func (self *DevHandler) handleDeviceRestart(c *gin.Context) {
 	})
 }
 
+// @Summary Device - Launch app
+// @Router /device/launch [POST]
+// @Param udid formData string true "Device UDID"
+// @Param bid formData string true "[bundle id]"
+func (self *DevHandler) handleDevLaunch(c *gin.Context) {
+	bid := c.PostForm("bid")
+	pc, udid := self.getPc(c)
+
+	done := make(chan bool)
+
+	pc.doLaunch(udid, bid, func(uj.JNode, []byte) {
+		done <- true
+	})
+
+	<-done
+
+	c.HTML(http.StatusOK, "error", gin.H{
+		"text": "ok",
+	})
+}
+
+// @Summary Device - Kill app
+// @Router /device/kill [POST]
+// @Param udid formData string true "Device UDID"
+// @Param bid formData string true "[bundle id]"
+func (self *DevHandler) handleDevKill(c *gin.Context) {
+	bid := c.PostForm("bid")
+	pc, udid := self.getPc(c)
+
+	done := make(chan bool)
+
+	pc.doKill(udid, bid, func(uj.JNode, []byte) {
+		done <- true
+	})
+
+	<-done
+
+	c.HTML(http.StatusOK, "error", gin.H{
+		"text": "ok",
+	})
+}
+
 // @Summary Device - Device info JSON
 // @Router /device/info/json [GET]
 // @Param udid query string true "Device UDID"
@@ -448,8 +493,9 @@ func (self *DevHandler) handleDevHardPress(c *gin.Context) {
 func (self *DevHandler) handleDevLongPress(c *gin.Context) {
 	x, _ := strconv.Atoi(c.PostForm("x"))
 	y, _ := strconv.Atoi(c.PostForm("y"))
+	time, _ := strconv.ParseFloat(c.PostForm("time"), 64)
 	pc, udid := self.getPc(c)
-	pc.doLongPress(udid, x, y)
+	pc.doLongPress(udid, x, y, time)
 }
 
 // @Summary Device click

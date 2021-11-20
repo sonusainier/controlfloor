@@ -49,11 +49,12 @@ func (self *ProviderConnection) doHardPress(udid string, x int, y int) {
 	self.provChan <- click
 }
 
-func (self *ProviderConnection) doLongPress(udid string, x int, y int) {
+func (self *ProviderConnection) doLongPress(udid string, x int, y int, time float64) {
 	click := &ProvLongPress{
 		udid: udid,
 		x:    x,
 		y:    y,
+		time: time,
 	}
 	self.provChan <- click
 }
@@ -93,6 +94,24 @@ func (self *ProviderConnection) doRefresh(udid string, onDone func(uj.JNode, []b
 func (self *ProviderConnection) doRestart(udid string, onDone func(uj.JNode, []byte)) {
 	action := &ProvRestart{
 		udid:  udid,
+		onRes: onDone,
+	}
+	self.provChan <- action
+}
+
+func (self *ProviderConnection) doLaunch(udid string, bid string, onDone func(uj.JNode, []byte)) {
+	action := &ProvLaunch{
+		udid:  udid,
+		bid:   bid,
+		onRes: onDone,
+	}
+	self.provChan <- action
+}
+
+func (self *ProviderConnection) doKill(udid string, bid string, onDone func(uj.JNode, []byte)) {
+	action := &ProvKill{
+		udid:  udid,
+		bid:   bid,
 		onRes: onDone,
 	}
 	self.provChan <- action
