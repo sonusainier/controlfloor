@@ -165,6 +165,7 @@ func (self *ReqTracker) processResp( msgType int, reqText []byte ) {
 
 const (
     CMKick = iota
+    CMPing = iota
     CMFrame = iota
 )
 type ClientMsg struct {
@@ -296,17 +297,46 @@ func (self *ProviderHandler) handleImgProvider( c *gin.Context ) {
         }
     }()
     
+    abort := false
+    
+    go func() {
+        for {
+            if abort { return }
+            frameChan <- FrameMsg{
+                msg: CMPing,
+                frame: []byte{},
+                frameType: 0,
+            }
+            time.Sleep( time.Second )
+        }
+    }()
+    
     // Whenever a frame is ready send the latest frame
     for {
         var frame FrameMsg
         gotFrame := false
         emptied := false
-        abort := false
         for {
             select {
                 case msg := <- frameChan:
                     if msg.msg == CMKick {
                         abort = true 
+                    } else if msg.msg == CMPing {
+                        awriter, err := outSocket.NextWriter( ws.TextMessage )
+                        if err == nil {
+                            _, err = awriter.Write( []byte("ping") )
+                            if err == nil {
+                                err = awriter.Close()
+                            }
+                        }
+                        if err != nil {
+                            frameChan <- FrameMsg{
+                                msg: CMKick,
+                                frame: []byte{},
+                                frameType: 0,
+                            }
+                        }                        
+                        continue
                     } else {
                         gotFrame = true
                         frame = msg
@@ -394,6 +424,7 @@ func (self *ProviderHandler) handleImgProvider( c *gin.Context ) {
         time.Sleep( time.Millisecond * time.Duration( milliToSleep ) )
     }
     
+    self.devTracker.delVidStreamOutput( udid, vidConn.rid )
     self.devTracker.deleteClient( udid )
     
     if conn != nil { conn.Close() }

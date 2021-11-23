@@ -7,8 +7,10 @@ import (
 
 type VidConn struct {
     socket *ws.Conn
-    stopChan chan bool
+    //stopChan chan bool
+    onDone func()
     offset int64
+    rid string
 }
 
 type DevStatus struct {
@@ -41,8 +43,31 @@ func NewDevTracker( config *Config ) (*DevTracker) {
     return self
 }
 
+func (self *DevTracker) delVidStreamOutput( udid string, rid string ) {
+    self.lock.Lock()
+    curConn, exists := self.vidConns[ udid ]
+    if exists {
+        if curConn.rid != rid { return }
+        onDone := curConn.onDone
+        delete( self.vidConns, udid )
+        self.lock.Unlock()
+        onDone()
+        return
+    }
+    delete( self.vidConns, udid )
+    self.lock.Unlock()
+}
+
 func (self *DevTracker) setVidStreamOutput( udid string, vidConn *VidConn ) {
     self.lock.Lock()
+    curConn, exists := self.vidConns[ udid ]
+    if exists {
+        onDone := curConn.onDone
+        self.vidConns[ udid ] = vidConn
+        self.lock.Unlock()
+        onDone()
+        return
+    }
     self.vidConns[ udid ] = vidConn
     self.lock.Unlock()
 }

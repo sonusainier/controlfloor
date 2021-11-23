@@ -144,6 +144,13 @@ func deleteReservationWithRid( udid string, rid string ) {
 }
 
 func addReservation( udid string, user string, rid string ) bool {
+    log.WithFields( log.Fields{
+        "type": "reserve_add",
+        "udid": censorUuid( udid ),
+        "user": user,
+        "rid": rid,
+    } ).Info("Adding device reservation")
+    
     rv := DbReservation{
         Udid: udid,
         User: user,

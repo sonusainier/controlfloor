@@ -5,12 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>ControlFloor</title>
 
-<!--<link rel="stylesheet" href="https://cdn.materialdesignicons.com/5.3.45/css/materialdesignicons.min.css" />-->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto&display=swap" />
 <link rel="stylesheet" href="/assets/css/styles.css" />
 <link rel="stylesheet" href="/assets/css/sidebar.css" />
 <link href="https://unpkg.com/@mountable/spinners@0.0.25/dist/mSpinnerSwirl.css" rel="stylesheet">
-<script src="//code.iconify.design/2/2.0.4/iconify.min.js"></script>
+<script src="/assets/js/iconify_icons.js"></script>
 
 <meta charset="utf-8">
 <style>
@@ -70,6 +69,20 @@
     background: #e8e7b0;
     border: solid 2px blue;
   }
+  #ta {
+    position: absolute;
+    top: 0px;
+    left: 0px;
+    width: 375px;
+    height: 667px;
+    z-index: 2;
+    background: transparent;
+    border: none;
+    resize: none;
+    caret-color: transparent;
+    cursor: pointer;
+    color: rgba(0,0,0,0);
+  }
 </style>
 <script>
   function getel( id ) {
@@ -92,6 +105,29 @@
     const y = event.clientY - rect.top
     console.log("x: " + x + " y: " + y)
     return [x,y];
+  }
+  function _replace(node,rep) {
+    node.parentNode.replaceChild(rep,node);
+  }
+  function loadIcons() {
+    var icons = document.getElementsByClassName("iconify");
+    var dp = new DOMParser();
+    for( var i=0;i<icons.length;i++ ) {
+    //while( icons.length ) {
+      var icon = icons[i];
+      var id = icon.id;
+      var cls = icon.className;
+      var mdiName = icon.dataset.icon;
+      var width = 40;
+      var height = 40;
+      var svgText = "<div style='display:inline-block; width:"+width+"px; height:"+height+"px;'>"+
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\">" +
+        iconify_icons[ mdiName.replace("mdi-","") ] + "</svg></div>";
+      var frag = dp.parseFromString( svgText, "text/html" ).body.childNodes[0];
+      _replace( icon, frag );
+      frag.id = id;
+      frag.className = cls;
+    }
   }
   var session='';
   var udid="{{ html .udid }}";
@@ -233,7 +269,7 @@
   This function can still be improved some more, as if keys are backed up
   and waiting to be sent we could send more than a single key at once.
   
-  The backend doesn't handle doing that as well as desierd so that is
+  The backend doesn't handle doing that as well as desired so that is
   avoided currently.
   */
   function sendKeys() {
@@ -258,6 +294,16 @@
     while( prevKeys.length > 5 ) prevKeys.pop();
   }
   
+  function sendText( text ) {
+    wait();
+    req( 'POST', base + '/device/text', function() {
+      unwait();
+    }, {
+      udid: udid,
+      text: text
+    } );
+  }
+  
   var mode = 'normal';
   var capture  = {}; // onkeydown
   var capture2 = {}; // onkeypress
@@ -277,9 +323,8 @@
   //capture[68] = 68; // delete; map to ascii delete
   capture2[39] = 39; // ' - quick search in firefox
   capture2[47] = 47; // / - quick search also
-  //window.addEventListener("load", function(evt) {
-  Iconify.loadIcons( [], () => {
-    Iconify.stopObserving();
+  window.addEventListener("load", function(evt) {
+    loadIcons();
     filltext( "d_name", info.DeviceName );
     filltext( "d_model", info.ArtworkDeviceProductDescription );
     filltext( "d_iosversion", info.ProductVersion );
@@ -301,9 +346,10 @@
     var loading   = getel("loading");
     var notesbox  = getel("notes");
     var shutdown  = getel("shutdown");
+    var ta        = getel("ta");
     var sizes = [];
     var times = [];
-    
+
     hardPress.childNodes[0].setAttribute("fill","");
     longPress.childNodes[0].setAttribute("fill","");
     //vectorBtn.childNodes[0].setAttribute("fill","");
@@ -352,6 +398,8 @@
     //vidbox.style.width  = ( displayWid + 100 ) + "px";
     canvas.width      = displayWid;
     canvas.height     = displayHeg;
+    ta.style.width = displayWid + "px";
+    ta.style.height = displayHeg + "px";
     getel("mid").style.width = displayWid + "px";
     under.style.top = displayHeg + "px";
     under.style.width = displayWid + "px";
@@ -440,7 +488,7 @@
       longPress.onmouseout = det.mouseout;
     }
     
-    canvas.onmousedown = function( event ) {
+    ta.onmousedown = function( event ) {
       mouseDownDate = new Date();
       var pos = getCursorPosition( canvas, event );
       if( mode == 'hard' ) doHardPress( pos );
@@ -448,7 +496,7 @@
       else                      pos1 = pos;
     }
     
-    canvas.onmouseup = function( event ) {
+    ta.onmouseup = function( event ) {
       if( mode == 'vector' ) {
         var pos = getCursorPosition( canvas, event );
         doMouseUp( pos );
@@ -479,7 +527,11 @@
       else clickAt( pos1 );
     }
     
-    window.onkeydown = function( event ) {
+    ta.onchange = function() {
+      
+    }
+    
+    ta.onkeydown = function( event ) {
       var key = event.key;
       if( key == "Shift" ) return;
       if( key.length==1 ) key = key.charCodeAt(0);
@@ -496,9 +548,13 @@
         sendKeys();
       }
       else console.log( "key " + key );
+      
+      setTimeout( function() {
+          ta.value = "";
+      }, 10 );
     }
     
-    window.onkeypress = function( event ) {
+    ta.onkeypress = function( event ) {
       var key = event.key;
       
       if( key.length==1 ) key = key.charCodeAt(0);
@@ -513,6 +569,16 @@
       if( capture2[ key ] ) {
         event.preventDefault();
       } else console.log( "key2 " + key );
+    }
+    
+    ta.onpaste = function(e) {
+      var text = "";
+      if( e.clipboardData && e.clipboardData.getData ) {
+        text = e.clipboardData.getData('text/plain');
+      }
+      if( text == "" ) return false;
+      sendText( text );
+      return false;
     }
     
     var wsprot = ( document.location.protocol == 'https:' ) ? "wss" : "ws"; 
@@ -548,7 +614,7 @@
               
               //var bpms = (blob.size-100) / diff;
               //var bps = bpms * 1000;
-              console.log( "bps " + bps );
+              //console.log( "bps " + bps );
               sizes.push( blob.size );
               times.push( diff );
               if( sizes.length == 5 ) {
@@ -581,7 +647,7 @@
                 if( l1 >= '0' && l1 <= '9' ) {
                     var serverTime = parseInt( data );
                     var diff = recvTime - serverTime;
-                    console.log( "latency:" + diff );
+                    //console.log( "latency:" + diff );
                 }
                 else if( l1 == '{' ) {
                     var json = JSON.parse( data );
@@ -601,9 +667,11 @@
                             
                             ws.send( "{\"clientTime\":\"" + ourTime + "\",\"sentTime\":\"" + serverTime + "\"}" );
                             
-                            console.log( "latency + time offset = " + diff );
+                            //console.log( "latency + time offset = " + diff );
                         }
                     }
+                } else if( data == "ping" ) {
+                    console.log("ping");
                 } else {
                     var parts = data.split(',');
                     if( parts[0] == 'sync' ) {
@@ -639,20 +707,6 @@
     }
   });
 </script>
-<script defer src="/assets/js/lifecycle.es5.js"></script>
-<script defer>
-  setTimeout( function() {
-    lifecycle.addEventListener('statechange', function( event ) {
-      // Despite information online saying this should work with visibilitychange; it does not
-      if( !gone && /*event.originalEvent == 'visibilitychange' && */event.newState == 'hidden' ) {
-        gone = 1;
-        console.log("Sending beacon for udid " + udid );
-        navigator.sendBeacon( "/device/videoStop?udid="+udid+"&rid="+rid, "" );
-      }
-    } );
-  }, 1000 );
-</script>
-
 </head>
 
 <body>
@@ -666,6 +720,7 @@
                 </td>
                 <td style="position:relative" id="mid">
                     <!--<i id="loading" style="vertical-align: top; position: absolute; left:100px; top:100px; font-size:100px;" class="m-spinner--swirl"></i>-->
+                    <textarea id="ta"></textarea>
                     <canvas id="canvas" width="375" height="667" style="position:absolute; top:0px; left:0px;"></canvas><br>
                     <div style="position: absolute; width:375px; font-size: 32px" id="under">
                         <center>
