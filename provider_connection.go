@@ -148,6 +148,15 @@ func (self *ProviderConnection) doSwipe(udid string, x1 int, y1 int, x2 int, y2 
 	self.provChan <- swipe
 }
 
+func (self *ProviderConnection) doText(udid string, text string, onDone func(uj.JNode, []byte)) {
+	action := &ProvText{
+		udid:  udid,
+		text:  text,
+		onRes: onDone,
+	}
+	self.provChan <- action
+}
+
 func (self *ProviderConnection) startImgStream(udid string) {
 	self.provChan <- &ProvStartStream{udid: udid}
 }

@@ -183,6 +183,21 @@ func (self *ProvKeys) asText(id int16) string {
 		id, self.udid, self.keys, self.curid, self.prevkeys)
 }
 
+type ProvText struct {
+	udid  string
+	text  string
+	onRes func(uj.JNode, []byte)
+}
+
+func (self *ProvText) resHandler() func(data uj.JNode, rawData []byte) {
+	return self.onRes
+}
+func (self *ProvText) needsResponse() bool { return true }
+func (self *ProvText) asText(id int16) string {
+	return fmt.Sprintf("{id:%d,type:\"text\",udid:\"%s\",text:\"%s\"}\n",
+		id, self.udid, self.text)
+}
+
 type ProvSwipe struct {
 	udid  string
 	x1    int
