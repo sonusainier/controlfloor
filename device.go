@@ -59,6 +59,7 @@ func (self *DevHandler) registerDeviceRoutes() {
 	uAuth.POST("/device/home", func(c *gin.Context) { self.handleDevHome(c) })
 	uAuth.POST("/device/swipe", func(c *gin.Context) { self.handleDevSwipe(c) })
 	uAuth.POST("/device/keys", func(c *gin.Context) { self.handleKeys(c) })
+	uAuth.POST("/device/text", func(c *gin.Context) { self.handleText(c) })
 	uAuth.POST("/device/source", func(c *gin.Context) { self.handleSource(c) })
 	uAuth.POST("/device/shutdown", func(c *gin.Context) { self.handleShutdown(c) })
 
@@ -458,8 +459,8 @@ func (self *DevHandler) getPc(c *gin.Context) (*ProviderConnection, string) {
 func (self *DevHandler) handleDevClick(c *gin.Context) {
 	x, _ := strconv.Atoi(c.PostForm("x"))
 	y, _ := strconv.Atoi(c.PostForm("y"))
+	fmt.Printf("Request proto %s\n", c.Request.Proto)
 	pc, udid := self.getPc(c)
-
 	done := make(chan bool)
 
 	pc.doClick(udid, x, y, func(uj.JNode, []byte) {
@@ -588,6 +589,27 @@ func (self *DevHandler) handleSource(c *gin.Context) {
 	})
 
 	<-done
+}
+
+// @Summary Device - Simulate entering a block of text
+// @Router /device/text [POST]
+// @Param udid formData string true "Device UDID"
+// @Param text formData string true "Text to enter"
+func (self *DevHandler) handleText(c *gin.Context) {
+	text := c.PostForm("text")
+
+	done := make(chan bool)
+
+	pc, udid := self.getPc(c)
+	pc.doText(udid, text, func(uj.JNode, []byte) {
+		done <- true
+	})
+
+	<-done
+
+	c.HTML(http.StatusOK, "error", gin.H{
+		"text": "ok",
+	})
 }
 
 // @Summary Device - Shutdown device provider
@@ -1006,13 +1028,7 @@ func (self *DevHandler) handleImgStream(c *gin.Context) {
 	_, data, _ := conn.ReadMessage()
 	clientOffset := parseTimeResult(data)
 
-	stopChan := make(chan bool)
-
-	self.devTracker.setVidStreamOutput(udid, &VidConn{
-		socket:   conn,
-		stopChan: stopChan,
-		offset:   clientOffset,
-	})
+	done := false
 
 	fmt.Printf("sending startStream to provider\n")
 	provId := self.devTracker.getDevProvId(udid)
@@ -1025,20 +1041,31 @@ func (self *DevHandler) handleImgStream(c *gin.Context) {
 		fmt.Println("Device not yet provided")
 		return
 	}
+
+	self.devTracker.setVidStreamOutput(udid, &VidConn{
+		socket: conn,
+		offset: clientOffset,
+		rid:    rid,
+		onDone: func() {
+			if done {
+				return
+			}
+			done = true
+
+			log.WithFields(log.Fields{
+				"type": "imgstream_start",
+				"udid": censorUuid(udid),
+				"rid":  rid,
+			}).Info("Image stream disconnected")
+
+			if rok {
+				deleteReservationWithRid(udid, rid)
+			}
+			provConn.stopImgStream(udid)
+		},
+	})
+
 	provConn.startImgStream(udid)
-
-	<-stopChan
-
-	log.WithFields(log.Fields{
-		"type": "imgstream_start",
-		"udid": censorUuid(udid),
-		"rid":  rid,
-	}).Info("Image stream disconnected")
-
-	if rok {
-		deleteReservationWithRid(udid, rid)
-	}
-	provConn.stopImgStream(udid)
 }
 
 type WsResponse interface {
