@@ -23,6 +23,7 @@ type Config struct {
     crt         string
     key         string
     auth        string
+    adminAuth   string
     root        uj.JNode
     idleTimeout int
     maxHeight   int
@@ -91,6 +92,11 @@ func NewConfig( configPath string, defaultsPath string ) (*Config) {
     authNode := config.root.Get("auth")
     if authNode != nil {
         config.auth = GetStr( authNode, "type" )
+    }
+    
+    adminAuthNode := config.root.Get("adminAuth")
+    if adminAuthNode != nil {
+        config.adminAuth = GetStr( adminAuthNode, "type" )
     }
     
     config.maxHeight = GetInt( root, "video.maxHeight" )
