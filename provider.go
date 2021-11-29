@@ -598,8 +598,8 @@ func (self *ProviderHandler) handleProviderLogout( c *gin.Context ) {
     c.Redirect( 302, "/" )
 }
 
-func (self *ProviderHandler) showProviderLogin( rCtx *gin.Context ) {
-    rCtx.HTML( http.StatusOK, "providerLogin", gin.H{} )
+func (self *ProviderHandler) showProviderLogin( c *gin.Context ) {
+    c.HTML( http.StatusOK, "providerLogin", gin.H{} )
 }
 
 func (self *ProviderHandler) showProviderRoot( c *gin.Context ) {

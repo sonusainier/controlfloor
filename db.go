@@ -132,6 +132,7 @@ func deleteReservationWithRid( udid string, rid string ) {
     
     rv := DbReservation{
         Udid: udid,
+        Rid: rid,
     }
     affected, err := gDb.Where("Udid=? and Rid=?", udid, rid ).Delete( &rv )
     if err != nil  {

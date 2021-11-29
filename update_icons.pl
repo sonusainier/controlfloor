@@ -34,6 +34,12 @@ my @icons = qw/
   mdi-circle-box
   mdi-arrow-left-bold
   mdi-bomb
+  mdi-format-list-textbox
+  mdi-cellphone-play
+  mdi-clipboard-text
+  mdi-settings
+  mdi-account-supervisor
+  mdi-account-circle
 /;
 
 my @sets = qw/mdi/;

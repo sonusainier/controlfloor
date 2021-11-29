@@ -61,6 +61,45 @@ func (self *ProvKill) asText( id int16 ) (string) {
     return fmt.Sprintf("{id:%d,type:\"kill\",udid:\"%s\",bid:\"%s\"}\n",id,self.udid,self.bid)
 }
 
+type ProvAllowApp struct {
+    udid string
+    bid string
+    onRes func( uj.JNode,[]byte )
+}
+func (self *ProvAllowApp) resHandler() ( func(data uj.JNode,rawData []byte) ) {
+    return self.onRes
+}
+func (self *ProvAllowApp) needsResponse() (bool) { return true }
+func (self *ProvAllowApp) asText( id int16 ) (string) {
+    return fmt.Sprintf("{id:%d,type:\"allowApp\",udid:\"%s\",bid:\"%s\"}\n",id,self.udid,self.bid)
+}
+
+type ProvRestrictApp struct {
+    udid string
+    bid string
+    onRes func( uj.JNode,[]byte )
+}
+func (self *ProvRestrictApp) resHandler() ( func(data uj.JNode,rawData []byte) ) {
+    return self.onRes
+}
+func (self *ProvRestrictApp) needsResponse() (bool) { return true }
+func (self *ProvRestrictApp) asText( id int16 ) (string) {
+    return fmt.Sprintf("{id:%d,type:\"restrictApp\",udid:\"%s\",bid:\"%s\"}\n",id,self.udid,self.bid)
+}
+
+type ProvListRestrictedApps struct {
+    udid string
+    bid string
+    onRes func( uj.JNode,[]byte )
+}
+func (self *ProvListRestrictedApps) resHandler() ( func(data uj.JNode,rawData []byte) ) {
+    return self.onRes
+}
+func (self *ProvListRestrictedApps) needsResponse() (bool) { return true }
+func (self *ProvListRestrictedApps) asText( id int16 ) (string) {
+    return fmt.Sprintf("{id:%d,type:\"listRestrictedApps\",udid:\"%s\"}\n",id,self.udid,self.bid)
+}
+
 type ProvMouseDown struct {
     udid string
     x int

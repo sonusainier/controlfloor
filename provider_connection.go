@@ -57,6 +57,32 @@ func (self *ProviderConnection) doKill( udid string, bid string, onDone func( uj
     self.provChan <- action
 }
 
+func (self *ProviderConnection) doAllowApp( udid string, bid string, onDone func( uj.JNode, []byte ) ) {
+    action := &ProvAllowApp{
+        udid: udid,
+        bid: bid,
+        onRes: onDone,
+    }
+    self.provChan <- action
+}
+
+func (self *ProviderConnection) doRestrictApp( udid string, bid string, onDone func( uj.JNode, []byte ) ) {
+    action := &ProvRestrictApp{
+        udid: udid,
+        bid: bid,
+        onRes: onDone,
+    }
+    self.provChan <- action
+}
+
+func (self *ProviderConnection) doListRestrictedApps( udid string, onDone func( uj.JNode, []byte ) ) {
+    action := &ProvListRestrictedApps{
+        udid: udid,
+        onRes: onDone,
+    }
+    self.provChan <- action
+}
+
 func (self *ProviderConnection) doMouseDown( udid string, x int, y int, onDone func( uj.JNode, []byte ) ) {
     click := &ProvMouseDown{
         udid: udid,
