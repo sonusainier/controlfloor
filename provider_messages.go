@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 
 	uj "github.com/nanoscopic/ujsonin/v2/mod"
@@ -307,6 +308,12 @@ func (self *ProvKeys) asText(id int16) string {
 		id, self.udid, self.keys, self.curid, self.prevkeys)
 }
 
+type ProvTestMsg struct {
+	Id   int16  `json:"id"`
+	Type string `json:"type"`
+	Udid string `json:"udid"`
+	Text string `json:"text"`
+}
 type ProvText struct {
 	udid  string
 	text  string
@@ -318,8 +325,14 @@ func (self *ProvText) resHandler() func(data uj.JNode, rawData []byte) {
 }
 func (self *ProvText) needsResponse() bool { return true }
 func (self *ProvText) asText(id int16) string {
-	return fmt.Sprintf("{id:%d,type:\"text\",udid:\"%s\",text:\"%s\"}\n",
-		id, self.udid, self.text)
+	msg := ProvTestMsg{
+		Id:   id,
+		Type: "text",
+		Udid: self.udid,
+		Text: self.text,
+	}
+	res, _ := json.Marshal(msg)
+	return string(res)
 }
 
 type ProvSwipe struct {
