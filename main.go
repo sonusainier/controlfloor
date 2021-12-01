@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	_ "github.com/nanoscopic/controlfloor/docs"
 	cfauth "github.com/nanoscopic/controlfloor_auth"
+	adminauth "github.com/nanoscopic/controlfloor_auth_admin"
 	uc "github.com/nanoscopic/uclop/mod"
 	swagFiles "github.com/swaggo/files"
 	swag "github.com/swaggo/gin-swagger"
@@ -95,13 +96,21 @@ func runMain(*uc.Cmd) {
 		authHandler = cfauth.NewAuthHandler(conf.root, sessionManager)
 	}
 
+	var adminHandler adminauth.AuthHandler
+	if conf.adminAuth == "mod" {
+		adminHandler = adminauth.NewAuthHandler(conf.root.Get("adminAuth"), sessionManager)
+	}
+
 	uh := NewUserHandler(authHandler, r, devTracker, sessionManager, conf)
 	uAuth := uh.registerUserRoutes()
+
+	ah := NewAdminHandler(adminHandler, r, devTracker, sessionManager, conf)
+	aAuth := ah.registerAdminRoutes()
 
 	ph := NewProviderHandler(r, devTracker, sessionManager)
 	pAuth := ph.registerProviderRoutes()
 
-	dh := NewDevHandler(pAuth, uAuth, devTracker, sessionManager, conf)
+	dh := NewDevHandler(pAuth, uAuth, aAuth, devTracker, sessionManager, conf)
 	dh.registerDeviceRoutes()
 
 	th := NewTestHandler(r, sessionManager)

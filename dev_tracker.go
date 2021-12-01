@@ -43,6 +43,7 @@ func NewDevTracker(config *Config) *DevTracker {
 
 	return self
 }
+
 func (self *DevTracker) delVidStreamOutput(udid string, rid string) {
 	self.lock.Lock()
 	curConn, exists := self.vidConns[udid]
