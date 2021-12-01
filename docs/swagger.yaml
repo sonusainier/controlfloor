@@ -1,6 +1,9 @@
 definitions:
   main.SDeviceInfo:
     properties:
+      cfaStatus:
+        example: up
+        type: string
       clickHeight:
         example: 844
         type: integer
@@ -55,6 +58,76 @@ paths:
   /:
     get:
       summary: Home - Device list
+  /admin/:
+    get:
+      summary: Home - Admin
+  /admin/device:
+    get:
+      parameters:
+      - description: Device UDID
+        in: query
+        name: udid
+        required: true
+        type: string
+      summary: Device - Device admin page
+  /admin/deviceApps:
+    get:
+      parameters:
+      - description: Device UDID
+        in: query
+        name: udid
+        required: true
+        type: string
+      summary: Device - Device app restriction page
+  /adminLogout:
+    post:
+      description: Admin - Logout
+  /adminlogin:
+    post:
+      description: Admin - Login
+      parameters:
+      - description: Username
+        in: formData
+        name: user
+        required: true
+        type: string
+      - description: Password
+        in: formData
+        name: pass
+        required: true
+        type: string
+  /device/allowApp:
+    post:
+      parameters:
+      - description: Device UDID
+        in: formData
+        name: udid
+        required: true
+        type: string
+      - description: '[bundle id]'
+        in: formData
+        name: bid
+        required: true
+        type: string
+      summary: Device - Allow app
+  /device/assistiveTouch:
+    post:
+      parameters:
+      - description: Device UDID
+        in: formData
+        name: udid
+        required: true
+        type: string
+      summary: Device assistive touch
+  /device/cc:
+    post:
+      parameters:
+      - description: Device UDID
+        in: formData
+        name: udid
+        required: true
+        type: string
+      summary: Device control center
   /device/click:
     post:
       parameters:
@@ -141,6 +214,15 @@ paths:
           schema:
             $ref: '#/definitions/main.SDeviceInfo'
       summary: Device - Device info JSON
+  /device/inspect:
+    get:
+      parameters:
+      - description: Device UDID
+        in: query
+        name: udid
+        required: true
+        type: string
+      summary: Device - Inspect Page
   /device/keys:
     post:
       parameters:
@@ -174,6 +256,43 @@ paths:
         required: true
         type: string
       summary: Device - Kick device user
+  /device/kill:
+    post:
+      parameters:
+      - description: Device UDID
+        in: formData
+        name: udid
+        required: true
+        type: string
+      - description: '[bundle id]'
+        in: formData
+        name: bid
+        required: true
+        type: string
+      summary: Device - Kill app
+  /device/launch:
+    post:
+      parameters:
+      - description: Device UDID
+        in: formData
+        name: udid
+        required: true
+        type: string
+      - description: '[bundle id]'
+        in: formData
+        name: bid
+        required: true
+        type: string
+      summary: Device - Launch app
+  /device/listRestrictedApps:
+    get:
+      parameters:
+      - description: Device UDID
+        in: formData
+        name: udid
+        required: true
+        type: string
+      summary: Device - List device restricted apps
   /device/longPress:
     post:
       parameters:
@@ -193,6 +312,85 @@ paths:
         required: true
         type: integer
       summary: Device - Long Press coordinate
+  /device/mouseDown:
+    post:
+      parameters:
+      - description: Device UDID
+        in: formData
+        name: udid
+        required: true
+        type: string
+      - description: x
+        in: formData
+        name: x
+        required: true
+        type: integer
+      - description: "y"
+        in: formData
+        name: "y"
+        required: true
+        type: integer
+      summary: Device - Mouse down
+  /device/mouseUp:
+    post:
+      parameters:
+      - description: Device UDID
+        in: formData
+        name: udid
+        required: true
+        type: string
+      - description: x
+        in: formData
+        name: x
+        required: true
+        type: integer
+      - description: "y"
+        in: formData
+        name: "y"
+        required: true
+        type: integer
+      summary: Device - Mouse up
+  /device/restrictApp:
+    post:
+      parameters:
+      - description: Device UDID
+        in: formData
+        name: udid
+        required: true
+        type: string
+      - description: '[bundle id]'
+        in: formData
+        name: bid
+        required: true
+        type: string
+      summary: Device - Restrict app
+  /device/shake:
+    post:
+      parameters:
+      - description: Device UDID
+        in: formData
+        name: udid
+        required: true
+        type: string
+      summary: Device shake
+  /device/shutdown:
+    get:
+      parameters:
+      - description: Device UDID
+        in: formData
+        name: udid
+        required: true
+        type: string
+      summary: Device - Shutdown device provider
+  /device/source:
+    get:
+      parameters:
+      - description: Device UDID
+        in: formData
+        name: udid
+        required: true
+        type: string
+      summary: Device - Get device source
   /device/status/exists:
     post:
       parameters:
@@ -281,6 +479,29 @@ paths:
         required: true
         type: number
       summary: Device - Swipe
+  /device/taskSwitcher:
+    post:
+      parameters:
+      - description: Device UDID
+        in: formData
+        name: udid
+        required: true
+        type: string
+      summary: Device task switcher
+  /device/text:
+    post:
+      parameters:
+      - description: Device UDID
+        in: formData
+        name: udid
+        required: true
+        type: string
+      - description: Text to enter
+        in: formData
+        name: text
+        required: true
+        type: string
+      summary: Device - Simulate entering a block of text
   /device/video:
     get:
       parameters:
@@ -299,6 +520,15 @@ paths:
         required: true
         type: string
       summary: Device - Stop device video
+  /device/ws:
+    get:
+      description: Device - Device Command Websocket
+      parameters:
+      - description: Device UDID
+        in: query
+        name: udid
+        required: true
+        type: string
   /login:
     post:
       description: User - Login

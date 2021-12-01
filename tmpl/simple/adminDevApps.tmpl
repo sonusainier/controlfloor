@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ControlFloor</title>
+
+    <link rel="stylesheet" href="https://cdn.materialdesignicons.com/4.9.95/css/materialdesignicons.min.css"  />
+    <link rel="stylesheet"  href="https://fonts.googleapis.com/css?family=Roboto&display=swap" />
+    <link rel="stylesheet" href="/assets/css/styles.css" />
+    <link rel="stylesheet" href="/assets/css/sidebar.css" />
+    <script>
+      function getel( id ) {
+        return document.getElementById( id );
+      }
+      function req( type, url, handler, body ) {
+        var xhr = new XMLHttpRequest();
+        xhr.open( type, url, true );
+        xhr.responseType = 'json';
+        xhr.onload = function(x) { handler(x,xhr); }
+        if( type == 'POST' && body ) {
+            if( typeof( body ) == 'object' ) {
+                var data = new FormData();
+                var test = {};
+                for( var k in body ) if( body.hasOwnProperty( k ) ) { data.append( k, body[k] ); test[k] = body[k]; }
+                console.log( test );
+                xhr.send( data );
+            }
+            else xhr.send(body);
+        }
+        else xhr.send();
+      }
+      var base = document.location.protocol + '//' + document.location.host;
+      var udid="{{ html .udid }}";
+      window.addEventListener("load", function(evt) {
+        //loadIcons();
+        req( 'GET', '/admin/device/listRestrictedApps?udid='+udid, function(a,req) {
+          var bids = req.response.bids;
+          var h = "";
+          if( bids.length == 0 ) {
+            h = "none";
+          } else {
+            for( var i=0;i<bids.length;i++ ) {
+              h += bids[i] + "<br>\n";
+            }
+          }
+          getel("banned").innerHTML = h;
+          //alert( req.responseText );
+        }, 0 );
+        
+        getel("add").onclick = function() {
+          var bid = getel("bid").value;
+          req( 'POST', '/admin/device/restrictApp', function() {
+            document.location.reload();
+          }, { udid, bid } );
+        };
+        
+        getel("remove").onclick = function() {
+          var bid = getel("bid2").value;
+          req( 'POST', '/admin/device/allowApp', function() {
+            document.location.reload();
+          ;}, { udid, bid } );
+        }
+      } );
+    </script>
+  </head>
+  <body>
+    {{template "adminSidebar" dict "udid" .udid "deviceVideo" .deviceVideo}}
+    <div class="mainWsidebar">
+        <table cellpadding=6 cellspacing=0 border=1>
+          <tr>
+            <td>Name</td>
+            <td>{{ html .name }}</td>
+          </tr>
+          <tr>
+            <td>UDID</td>
+            <td>{{ html .udid }}</td>
+          </tr>
+          <tr>
+            <td>Provider</td>
+            <td>{{ html .provider }}</td>
+          </tr>
+        </table>
+        <br>
+        Banned apps:<br>
+        <div id="banned">
+        </div>
+        <br>
+        Add ban:
+        <table>
+          <tr>
+            <td>Bundle ID</td>
+            <td><input type="text" id="bid" value=""></td>
+          </tr>
+          <tr>
+            <td colspan=2>
+              <input type="button" id="add" value="Add">
+            </td>
+          </tr>
+        </table><br>
+        <br>
+        Remove ban:
+        <table>
+          <tr>
+            <td>Bundle ID</td>
+            <td><input type="text" id="bid2" value=""></td>
+          </tr>
+          <tr>
+            <td colspan=2>
+              <input type="button" id="remove" value="Remove">
+            </td>
+          </tr>
+        </table>
+    </div>
+  </body>
+</html>
