@@ -17,6 +17,25 @@
             ]
         }
     }
+    adminAuth: {
+        type: "mod"
+        label: "admin "
+        cookieName: "admin"
+        dummy: {
+            testparam: "ok"
+            testuser: "test"
+            users: [
+                {
+                    userName: "ok"
+                    password: "ok"
+                },
+                {
+                    userName: "ok2"
+                    password: "ok"
+                }
+            ]
+        }
+    }
     idleTimeout: "15m"
     video: {
         maxHeight: 850

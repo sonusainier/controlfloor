@@ -13,7 +13,7 @@ func initTemplates( r *gin.Engine, config *Config ) {
     r.HTMLRender = ginview.New( goview.Config{
         Root:         fmt.Sprintf( "tmpl/%s", config.theme ),
         Extension:    ".tmpl",
-        Partials:     []string{"sidebar"},
+        Partials:     []string{"sidebar","adminSidebar"},
         Funcs:        createFuncMap(),
         DisableCache: config.disableCache,
     } )

@@ -28,6 +28,114 @@ var doc = `{
                 "summary": "Home - Device list"
             }
         },
+        "/admin/": {
+            "get": {
+                "summary": "Home - Admin"
+            }
+        },
+        "/admin/device": {
+            "get": {
+                "summary": "Device - Device admin page",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Device UDID",
+                        "name": "udid",
+                        "in": "query",
+                        "required": true
+                    }
+                ]
+            }
+        },
+        "/admin/deviceApps": {
+            "get": {
+                "summary": "Device - Device app restriction page",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Device UDID",
+                        "name": "udid",
+                        "in": "query",
+                        "required": true
+                    }
+                ]
+            }
+        },
+        "/adminLogout": {
+            "post": {
+                "description": "Admin - Logout"
+            }
+        },
+        "/adminlogin": {
+            "post": {
+                "description": "Admin - Login",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Username",
+                        "name": "user",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Password",
+                        "name": "pass",
+                        "in": "formData",
+                        "required": true
+                    }
+                ]
+            }
+        },
+        "/device/allowApp": {
+            "post": {
+                "summary": "Device - Allow app",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Device UDID",
+                        "name": "udid",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "[bundle id]",
+                        "name": "bid",
+                        "in": "formData",
+                        "required": true
+                    }
+                ]
+            }
+        },
+        "/device/assistiveTouch": {
+            "post": {
+                "summary": "Device assistive touch",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Device UDID",
+                        "name": "udid",
+                        "in": "formData",
+                        "required": true
+                    }
+                ]
+            }
+        },
+        "/device/cc": {
+            "post": {
+                "summary": "Device control center",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Device UDID",
+                        "name": "udid",
+                        "in": "formData",
+                        "required": true
+                    }
+                ]
+            }
+        },
         "/device/click": {
             "post": {
                 "summary": "Device - Click coordinate",
@@ -158,6 +266,20 @@ var doc = `{
                 }
             }
         },
+        "/device/inspect": {
+            "get": {
+                "summary": "Device - Inspect Page",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Device UDID",
+                        "name": "udid",
+                        "in": "query",
+                        "required": true
+                    }
+                ]
+            }
+        },
         "/device/keys": {
             "post": {
                 "summary": "Device - Simulate keystrokes",
@@ -207,6 +329,62 @@ var doc = `{
                 ]
             }
         },
+        "/device/kill": {
+            "post": {
+                "summary": "Device - Kill app",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Device UDID",
+                        "name": "udid",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "[bundle id]",
+                        "name": "bid",
+                        "in": "formData",
+                        "required": true
+                    }
+                ]
+            }
+        },
+        "/device/launch": {
+            "post": {
+                "summary": "Device - Launch app",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Device UDID",
+                        "name": "udid",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "[bundle id]",
+                        "name": "bid",
+                        "in": "formData",
+                        "required": true
+                    }
+                ]
+            }
+        },
+        "/device/listRestrictedApps": {
+            "get": {
+                "summary": "Device - List device restricted apps",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Device UDID",
+                        "name": "udid",
+                        "in": "formData",
+                        "required": true
+                    }
+                ]
+            }
+        },
         "/device/longPress": {
             "post": {
                 "summary": "Device - Long Press coordinate",
@@ -229,6 +407,125 @@ var doc = `{
                         "type": "integer",
                         "description": "y",
                         "name": "y",
+                        "in": "formData",
+                        "required": true
+                    }
+                ]
+            }
+        },
+        "/device/mouseDown": {
+            "post": {
+                "summary": "Device - Mouse down",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Device UDID",
+                        "name": "udid",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "x",
+                        "name": "x",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "y",
+                        "name": "y",
+                        "in": "formData",
+                        "required": true
+                    }
+                ]
+            }
+        },
+        "/device/mouseUp": {
+            "post": {
+                "summary": "Device - Mouse up",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Device UDID",
+                        "name": "udid",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "x",
+                        "name": "x",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "y",
+                        "name": "y",
+                        "in": "formData",
+                        "required": true
+                    }
+                ]
+            }
+        },
+        "/device/restrictApp": {
+            "post": {
+                "summary": "Device - Restrict app",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Device UDID",
+                        "name": "udid",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "[bundle id]",
+                        "name": "bid",
+                        "in": "formData",
+                        "required": true
+                    }
+                ]
+            }
+        },
+        "/device/shake": {
+            "post": {
+                "summary": "Device shake",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Device UDID",
+                        "name": "udid",
+                        "in": "formData",
+                        "required": true
+                    }
+                ]
+            }
+        },
+        "/device/shutdown": {
+            "get": {
+                "summary": "Device - Shutdown device provider",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Device UDID",
+                        "name": "udid",
+                        "in": "formData",
+                        "required": true
+                    }
+                ]
+            }
+        },
+        "/device/source": {
+            "get": {
+                "summary": "Device - Get device source",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Device UDID",
+                        "name": "udid",
                         "in": "formData",
                         "required": true
                     }
@@ -368,6 +665,41 @@ var doc = `{
                 ]
             }
         },
+        "/device/taskSwitcher": {
+            "post": {
+                "summary": "Device task switcher",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Device UDID",
+                        "name": "udid",
+                        "in": "formData",
+                        "required": true
+                    }
+                ]
+            }
+        },
+        "/device/text": {
+            "post": {
+                "summary": "Device - Simulate entering a block of text",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Device UDID",
+                        "name": "udid",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Text to enter",
+                        "name": "text",
+                        "in": "formData",
+                        "required": true
+                    }
+                ]
+            }
+        },
         "/device/video": {
             "get": {
                 "summary": "Device - Video Page",
@@ -385,6 +717,20 @@ var doc = `{
         "/device/videoStop": {
             "post": {
                 "summary": "Device - Stop device video",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Device UDID",
+                        "name": "udid",
+                        "in": "query",
+                        "required": true
+                    }
+                ]
+            }
+        },
+        "/device/ws": {
+            "get": {
+                "description": "Device - Device Command Websocket",
                 "parameters": [
                     {
                         "type": "string",
@@ -495,6 +841,10 @@ var doc = `{
         "main.SDeviceInfo": {
             "type": "object",
             "properties": {
+                "cfaStatus": {
+                    "type": "string",
+                    "example": "up"
+                },
                 "clickHeight": {
                     "type": "integer",
                     "example": 844

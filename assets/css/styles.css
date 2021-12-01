@@ -1,16 +1,11 @@
-/*:root {
+:root {
   --sidebar-width: 4.5em;
-}*/
+}
 
 body {
   margin: 0;
   padding: 0;
   font-family: 'Roboto';
-}
-
-* {
-  outline: none;
-  box-sizing: border-box;
 }
 
 #vidbox {
@@ -33,7 +28,8 @@ body {
 
 @media (min-width: 572px) {
   .mainWsidebar {
-    margin-left: var(--sidebar-width);
+    margin-left: 4.5em; /*var(--sidebar-width);*/
+    padding: 2.5em 1.25em;
   }
 }
 
@@ -43,10 +39,10 @@ body {
   }
 }
 
-.mInactive {
+.mInactive path {
   color: #444;
 }
 
-.mActive {
+.mActive path {
   color: red;
 }

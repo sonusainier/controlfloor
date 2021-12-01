@@ -3,6 +3,7 @@ module main.go
 go 1.12
 
 //replace github.com/nanoscopic/controlfloor_auth => ../controlfloor_auth
+replace github.com/nanoscopic/controlfloor_auth_admin => ../controlfloor_auth_none_b
 replace github.com/nanoscopic/controlfloor/docs => ./docs
 replace github.com/nanoscopic/controlfloor_auth => /Users/ltadmin/Documents/ios_control_floor/controlfloor_auth_none
 
@@ -19,6 +20,7 @@ require (
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible
 	github.com/nanoscopic/controlfloor/docs v0.0.0-00010101000000-000000000000
 	github.com/nanoscopic/controlfloor_auth v1.1.0
+    github.com/nanoscopic/controlfloor_auth_admin v1.1.0
 	github.com/nanoscopic/uclop v1.1.0
 	github.com/nanoscopic/ujsonin/v2 v2.0.6
 	github.com/sirupsen/logrus v1.8.0
