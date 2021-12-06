@@ -199,6 +199,14 @@
       unwait();
     }, { udid, x, y } );
   }
+  function dblClick( pos ) {
+    var x = Math.floor( (pos[0]/displayWid)*clickWid ); 
+    var y = Math.floor( (pos[1]/displayHeg)*clickHeg );
+    wait();
+    req( 'POST', base + '/device/doubleclick', function() {
+      unwait();
+    }, { udid, x, y } );
+  }
   function doMouseDown( pos ) {
     var x = Math.floor( (pos[0]/displayWid)*clickWid ); 
     var y = Math.floor( (pos[1]/displayHeg)*clickHeg );
@@ -338,7 +346,7 @@
     var ccBtn     = getel("ccBtn");
     var atBtn     = getel("atBtn");
     var hardPress = getel("hardPress");
-    var longPress = getel("longPress");
+    //var longPress = getel("longPress");
     //var vectorBtn = getel("vectorBtn");
     var under     = getel("under");
     var vidbox    = getel("vidbox");
@@ -351,7 +359,7 @@
     var times = [];
 
     hardPress.childNodes[0].setAttribute("fill","");
-    longPress.childNodes[0].setAttribute("fill","");
+    //longPress.childNodes[0].setAttribute("fill","");
     //vectorBtn.childNodes[0].setAttribute("fill","");
     
     var ties = {};
@@ -439,7 +447,7 @@
     hardPress.onclick = function( event ) {
       if( mode != 'hard' ) {
         hardPress.setAttribute( "class", 'iconify iconfiy-mdi mActive' );
-        longPress.setAttribute( "class", 'iconify iconfiy-mdi mInactive');
+        //longPress.setAttribute( "class", 'iconify iconfiy-mdi mInactive');
         //vectorBtn.setAttribute( "class", "iconify iconify-mdi mInactive");
         mode = 'hard';
       } else {
@@ -463,7 +471,7 @@
       hardPress.onmouseover = det.mouseover;
       hardPress.onmouseout = det.mouseout;
     }
-    longPress.onclick = function( event ) {
+    /*longPress.onclick = function( event ) {
       if( mode != 'long' ) {
         longPress.setAttribute( "class", 'iconify iconfiy-mdi mActive' );
         hardPress.setAttribute( "class", 'iconify iconfiy-mdi mInactive' );
@@ -473,7 +481,7 @@
         longPress.setAttribute( "class", 'iconify iconfiy-mdi mInactive' );
         mode = 'normal';
       }
-    }
+    }*/
     shutdown.onclick = function( event ) {
       var ok = confirm("This will shutdown/reset the device provider. Are you sure?");
       if( ok ) {
@@ -482,11 +490,11 @@
         doShutdown();
       }
     }
-    if( ties["longpress"] ) {
+    /*if( ties["longpress"] ) {
       var det = ties["longpress"];
       longPress.onmouseover = det.mouseover;
       longPress.onmouseout = det.mouseout;
-    }
+    }*/
     
     ta.onmousedown = function( event ) {
       mouseDownDate = new Date();
@@ -523,8 +531,15 @@
       var dy = Math.abs( pos2[1] - pos1[1] );
       if( dx > 3 || dy > 3 ) {
         swipe( pos1, pos2, sDiff );
+      } else if( sDiff > 0.2 ) {
+        doLongPress( pos1, sDiff );
       }
       else clickAt( pos1 );
+    }
+    
+    ta.ondblclick = function( event ) {
+      var pos = getCursorPosition( canvas, event );
+      dblClick( pos );
     }
     
     ta.onchange = function() {
@@ -726,7 +741,7 @@
                         <center>
                             <i id="home" class="iconify" data-icon="mdi-home"></i>
                             <i id="hardPress" class="iconify" data-icon="mdi-anvil"></i>
-                            <i id="longPress" class="iconify" data-icon="mdi-alarm-multiple"></i>
+                            <!--<i id="longPress" class="iconify" data-icon="mdi-alarm-multiple"></i>-->
                             <!--<i id="taskBtn" class="iconify" data-icon="mdi-content-duplicate"></i>
                             <i id="shakeBtn" class="iconify" data-icon="mdi-cards-outline"></i>-->
                             <i id="ccBtn" class="iconify" data-icon="mdi-view-dashboard-outline"></i>

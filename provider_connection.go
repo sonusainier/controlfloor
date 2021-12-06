@@ -39,6 +39,16 @@ func (self *ProviderConnection) doClick( udid string, x int, y int, onDone func(
     self.provChan <- click
 }
 
+func (self *ProviderConnection) doDoubleclick( udid string, x int, y int, onDone func( uj.JNode, []byte ) ) {
+    click := &ProvDoubleclick{
+        udid: udid,
+        x: x,
+        y: y,
+        onRes: onDone,
+    }
+    self.provChan <- click
+}
+
 func (self *ProviderConnection) doLaunch( udid string, bid string, onDone func( uj.JNode, []byte ) ) {
     action := &ProvLaunch{
         udid: udid,
@@ -112,12 +122,13 @@ func (self *ProviderConnection) doHardPress( udid string, x int, y int ) {
     self.provChan <- click
 }
 
-func (self *ProviderConnection) doLongPress( udid string, x int, y int, time float64 ) {
+func (self *ProviderConnection) doLongPress( udid string, x int, y int, time float64, onDone func( uj.JNode, []byte ) ) {
     click := &ProvLongPress{
         udid: udid,
         x: x,
         y: y,
         time: time,
+        onRes: onDone,
     }
     self.provChan <- click
 }

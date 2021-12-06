@@ -57,6 +57,7 @@ func (self *DevHandler) registerDeviceRoutes() {
     
     //uAuth.GET("/devClick", showDevClick )
     uAuth.POST("/device/click",       func( c *gin.Context ) { self.handleDevClick( c ) } )
+    uAuth.POST("/device/doubleclick",       func( c *gin.Context ) { self.handleDevDoubleclick( c ) } )
     uAuth.POST("/device/mouseDown",   func( c *gin.Context ) { self.handleDevMouseDown( c ) } )
     uAuth.POST("/device/mouseUp",     func( c *gin.Context ) { self.handleDevMouseUp( c ) } )
     uAuth.POST("/device/hardPress",   func( c *gin.Context ) { self.handleDevHardPress( c ) } )
@@ -469,6 +470,30 @@ func (self *DevHandler) handleDevClick( c *gin.Context ) {
     } )
 }
 
+// @Summary Device - Doubleclick coordinate
+// @Router /device/doubleclick [POST]
+// @Param udid formData string true "Device UDID"
+// @Param x formData int true "x"
+// @Param y formData int true "y"
+func (self *DevHandler) handleDevDoubleclick( c *gin.Context ) {
+    x, _ := strconv.Atoi( c.PostForm("x") )
+    y, _ := strconv.Atoi( c.PostForm("y") )
+    fmt.Printf("Request proto %s\n", c.Request.Proto )
+    pc, udid := self.getPc( c )
+    
+    done := make( chan bool )
+    
+    pc.doDoubleclick( udid, x, y, func( uj.JNode, []byte ) {
+        done <- true
+    } )
+    
+    <- done
+    
+    c.HTML( http.StatusOK, "error", gin.H{
+        "text": "ok",
+    } )
+}
+
 // @Summary Device - Launch app
 // @Router /device/launch [POST]
 // @Param udid formData string true "Device UDID"
@@ -622,7 +647,18 @@ func (self *DevHandler) handleDevLongPress( c *gin.Context ) {
     time, _ := strconv.ParseFloat( c.PostForm("time"), 64 )
     
     pc, udid := self.getPc( c )
-    pc.doLongPress( udid, x, y, time )
+    
+    done := make( chan bool )
+    
+    pc.doLongPress( udid, x, y, time, func( uj.JNode, []byte ) {
+        done <- true
+    } )
+    
+    <- done
+    
+    c.HTML( http.StatusOK, "error", gin.H{
+        "text": "ok",
+    } )
 }
 
 // @Summary Device click

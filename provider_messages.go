@@ -22,6 +22,20 @@ func (self *ProvPing) asText( id int16 ) (string) {
     return fmt.Sprintf("{id:%d,type:\"ping\"}\n", id)
 }
 
+type ProvDoubleclick struct {
+    udid string
+    x int
+    y int
+    onRes func( uj.JNode,[]byte )
+}
+func (self *ProvDoubleclick) resHandler() ( func(data uj.JNode,rawData []byte) ) {
+    return self.onRes
+}
+func (self *ProvDoubleclick) needsResponse() (bool) { return true }
+func (self *ProvDoubleclick) asText( id int16 ) (string) {
+    return fmt.Sprintf("{id:%d,type:\"doubleclick\",udid:\"%s\",x:%d,y:%d}\n",id,self.udid,self.x,self.y)
+}
+
 type ProvClick struct {
     udid string
     x int
@@ -145,9 +159,12 @@ type ProvLongPress struct {
     x int
     y int
     time float64
+    onRes func( uj.JNode,[]byte )
 }
-func (self *ProvLongPress) resHandler() (func(uj.JNode,[]byte) ) { return nil }
-func (self *ProvLongPress) needsResponse() (bool) { return false }
+func (self *ProvLongPress) resHandler() (func(uj.JNode,[]byte) ) {
+    return self.onRes
+}
+func (self *ProvLongPress) needsResponse() (bool) { return true }
 func (self *ProvLongPress) asText( id int16 ) (string) {
     return fmt.Sprintf("{id:%d,type:\"longPress\",udid:\"%s\",x:%d,y:%d,time:\"%f\"}\n",id,self.udid,self.x,self.y,self.time)
 }
