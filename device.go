@@ -100,6 +100,7 @@ func (self *DevHandler) registerDeviceRoutes() {
 	uAuth.GET("/device/wdaPort", self.showWdaPort)
 	uAuth.GET("/device/refresh", self.handleDeviceRefresh)
 	uAuth.GET("/device/restart", self.handleDeviceRestart)
+	uAuth.POST("/device/launchsafariurl", func(c *gin.Context) { self.handleSafariUrl(c) })
 }
 
 type SRawInfo struct {

@@ -253,3 +253,12 @@ func (self *ProviderConnection) doRestart(udid string, onDone func(uj.JNode, []b
 	}
 	self.provChan <- action
 }
+
+func (self *ProviderConnection) doOpenSafariUrl(udid string, url string, onDone func(uj.JNode, []byte)) {
+	action := &ProvSafariUrl{
+		udid:  udid,
+		url:   url,
+		onRes: onDone,
+	}
+	self.provChan <- action
+}

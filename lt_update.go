@@ -1,11 +1,26 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	uj "github.com/nanoscopic/ujsonin/v2/mod"
 )
+
+type ProvSafariUrl struct {
+	udid  string
+	url   string
+	onRes func(uj.JNode, []byte)
+}
+
+func (self *ProvSafariUrl) resHandler() func(data uj.JNode, rawData []byte) {
+	return self.onRes
+}
+func (self *ProvSafariUrl) needsResponse() bool { return true }
+func (self *ProvSafariUrl) asText(id int16) string {
+	return fmt.Sprintf("{id:%d,type:\"launchsafariurl\",udid:\"%s\",url:\"%s\"}\n", id, self.udid, self.url)
+}
 
 type SDeviceRefresh struct {
 	Udid    string `json:"udid"        example:"00008100-001338811EE10033"`
@@ -103,5 +118,26 @@ func (self *DevHandler) handleDeviceRestart(c *gin.Context) {
 	c.JSON(http.StatusOK, SDeviceRestart{
 		Udid:    udid,
 		Restart: restart,
+	})
+}
+
+// @Summary Device - Launch url in safari app
+// @Router /device/launchsafariurl [POST]
+// @Param udid formData string true "Device UDID"
+// @Param bid formData string true "[bundle id]"
+func (self *DevHandler) handleSafariUrl(c *gin.Context) {
+	url := c.PostForm("url")
+	pc, udid := self.getPc(c)
+
+	done := make(chan bool)
+
+	pc.doOpenSafariUrl(udid, url, func(uj.JNode, []byte) {
+		done <- true
+	})
+
+	<-done
+
+	c.HTML(http.StatusOK, "error", gin.H{
+		"text": "ok",
 	})
 }
