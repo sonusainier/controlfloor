@@ -1,12 +1,19 @@
 package main
 
 import (
-	"fmt"
+	"encoding/json"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	uj "github.com/nanoscopic/ujsonin/v2/mod"
 )
+
+type ProvSafariTestMsg struct {
+	Id   int16  `json:"id"`
+	Type string `json:"type"`
+	Udid string `json:"udid"`
+	Url  string `json:"url"`
+}
 
 type ProvSafariUrl struct {
 	udid  string
@@ -19,7 +26,14 @@ func (self *ProvSafariUrl) resHandler() func(data uj.JNode, rawData []byte) {
 }
 func (self *ProvSafariUrl) needsResponse() bool { return true }
 func (self *ProvSafariUrl) asText(id int16) string {
-	return fmt.Sprintf("{id:%d,type:\"launchsafariurl\",udid:\"%s\",url:\"%s\"}\n", id, self.udid, self.url)
+	msg := ProvSafariTestMsg{
+		Id:   id,
+		Type: "launchsafariurl",
+		Udid: self.udid,
+		Url:  self.url,
+	}
+	res, _ := json.Marshal(msg)
+	return string(res)
 }
 
 type SDeviceRefresh struct {
