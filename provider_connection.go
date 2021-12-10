@@ -39,115 +39,14 @@ func (self *ProviderConnection) doClick(udid string, x int, y int, onDone func(u
 	self.provChan <- click
 }
 
-func (self *ProviderConnection) doHardPress(udid string, x int, y int) {
-	click := &ProvHardPress{
-		udid: udid,
-		x:    x,
-		y:    y,
-	}
-	self.provChan <- click
-}
-
-func (self *ProviderConnection) doLongPress(udid string, x int, y int, time float64) {
-	click := &ProvLongPress{
-		udid: udid,
-		x:    x,
-		y:    y,
-		time: time,
-	}
-	self.provChan <- click
-}
-
-func (self *ProviderConnection) doTaskSwitcher(udid string, onDone func(uj.JNode, []byte)) {
-	action := &ProvTaskSwitcher{
-		udid:  udid,
-		onRes: onDone,
-	}
-	self.provChan <- action
-}
-
-func (self *ProviderConnection) doShake(udid string, onDone func(uj.JNode, []byte)) {
-	action := &ProvShake{
-		udid:  udid,
-		onRes: onDone,
-	}
-	self.provChan <- action
-}
-
-func (self *ProviderConnection) doMouseDown(udid string, x int, y int, onDone func(uj.JNode, []byte)) {
-	click := &ProvMouseDown{
+func (self *ProviderConnection) doDoubleclick(udid string, x int, y int, onDone func(uj.JNode, []byte)) {
+	click := &ProvDoubleclick{
 		udid:  udid,
 		x:     x,
 		y:     y,
 		onRes: onDone,
 	}
 	self.provChan <- click
-}
-
-func (self *ProviderConnection) doMouseUp(udid string, x int, y int, onDone func(uj.JNode, []byte)) {
-	click := &ProvMouseUp{
-		udid:  udid,
-		x:     x,
-		y:     y,
-		onRes: onDone,
-	}
-	self.provChan <- click
-}
-
-func (self *ProviderConnection) doCC(udid string, onDone func(uj.JNode, []byte)) {
-	action := &ProvCC{
-		udid:  udid,
-		onRes: onDone,
-	}
-	self.provChan <- action
-}
-
-func (self *ProviderConnection) doAssistiveTouch(udid string, onDone func(uj.JNode, []byte)) {
-	action := &ProvAssistiveTouch{
-		udid:  udid,
-		onRes: onDone,
-	}
-	self.provChan <- action
-}
-
-func (self *ProviderConnection) doHome(udid string, onDone func(uj.JNode, []byte)) {
-	home := &ProvHome{
-		udid:  udid,
-		onRes: onDone,
-	}
-	self.provChan <- home
-}
-
-func (self *ProviderConnection) doSource(udid string, onDone func(uj.JNode, []byte)) {
-	source := &ProvSource{
-		udid:  udid,
-		onRes: onDone,
-	}
-	self.provChan <- source
-}
-
-func (self *ProviderConnection) doWifiIp(udid string, onDone func(uj.JNode, []byte)) {
-	action := &ProvWifiIp{
-		udid:  udid,
-		onRes: onDone,
-	}
-	self.provChan <- action
-}
-
-func (self *ProviderConnection) doRefresh(udid string, onDone func(uj.JNode, []byte)) {
-	action := &ProvRefresh{
-		udid:  udid,
-		onRes: onDone,
-	}
-	self.provChan <- action
-}
-
-func (self *ProviderConnection) doRestart(udid string, onDone func(uj.JNode, []byte)) {
-	action := &ProvRestart{
-		udid:  udid,
-		onRes: onDone,
-	}
-	self.provChan <- action
 }
 
 func (self *ProviderConnection) doLaunch(udid string, bid string, onDone func(uj.JNode, []byte)) {
@@ -194,6 +93,102 @@ func (self *ProviderConnection) doListRestrictedApps(udid string, onDone func(uj
 	self.provChan <- action
 }
 
+func (self *ProviderConnection) doMouseDown(udid string, x int, y int, onDone func(uj.JNode, []byte)) {
+	click := &ProvMouseDown{
+		udid:  udid,
+		x:     x,
+		y:     y,
+		onRes: onDone,
+	}
+	self.provChan <- click
+}
+
+func (self *ProviderConnection) doMouseUp(udid string, x int, y int, onDone func(uj.JNode, []byte)) {
+	click := &ProvMouseUp{
+		udid:  udid,
+		x:     x,
+		y:     y,
+		onRes: onDone,
+	}
+	self.provChan <- click
+}
+
+func (self *ProviderConnection) doHardPress(udid string, x int, y int) {
+	click := &ProvHardPress{
+		udid: udid,
+		x:    x,
+		y:    y,
+	}
+	self.provChan <- click
+}
+
+func (self *ProviderConnection) doLongPress(udid string, x int, y int, time float64, onDone func(uj.JNode, []byte)) {
+	click := &ProvLongPress{
+		udid:  udid,
+		x:     x,
+		y:     y,
+		time:  time,
+		onRes: onDone,
+	}
+	self.provChan <- click
+}
+
+func (self *ProviderConnection) doTaskSwitcher(udid string, onDone func(uj.JNode, []byte)) {
+	action := &ProvTaskSwitcher{
+		udid:  udid,
+		onRes: onDone,
+	}
+	self.provChan <- action
+}
+
+func (self *ProviderConnection) doShake(udid string, onDone func(uj.JNode, []byte)) {
+	action := &ProvShake{
+		udid:  udid,
+		onRes: onDone,
+	}
+	self.provChan <- action
+}
+
+func (self *ProviderConnection) doCC(udid string, onDone func(uj.JNode, []byte)) {
+	action := &ProvCC{
+		udid:  udid,
+		onRes: onDone,
+	}
+	self.provChan <- action
+}
+
+func (self *ProviderConnection) doAssistiveTouch(udid string, onDone func(uj.JNode, []byte)) {
+	action := &ProvAssistiveTouch{
+		udid:  udid,
+		onRes: onDone,
+	}
+	self.provChan <- action
+}
+
+func (self *ProviderConnection) doHome(udid string, onDone func(uj.JNode, []byte)) {
+	home := &ProvHome{
+		udid:  udid,
+		onRes: onDone,
+	}
+	self.provChan <- home
+}
+
+func (self *ProviderConnection) doSource(udid string, onDone func(uj.JNode, []byte)) {
+	source := &ProvSource{
+		udid:  udid,
+		onRes: onDone,
+	}
+	self.provChan <- source
+}
+
+func (self *ProviderConnection) doWifiIp(udid string, onDone func(uj.JNode, []byte)) {
+	action := &ProvWifiIp{
+		udid:  udid,
+		onRes: onDone,
+	}
+	self.provChan <- action
+}
+
 func (self *ProviderConnection) doShutdown(onDone func(uj.JNode, []byte)) {
 	msg := &ProvShutdown{
 		onRes: onDone,
@@ -212,6 +207,15 @@ func (self *ProviderConnection) doKeys(udid string, keys string, curid int, prev
 	self.provChan <- action
 }
 
+func (self *ProviderConnection) doText(udid string, text string, onDone func(uj.JNode, []byte)) {
+	action := &ProvText{
+		udid:  udid,
+		text:  text,
+		onRes: onDone,
+	}
+	self.provChan <- action
+}
+
 func (self *ProviderConnection) doSwipe(udid string, x1 int, y1 int, x2 int, y2 int, delay float64, onDone func(uj.JNode, []byte)) {
 	swipe := &ProvSwipe{
 		udid:  udid,
@@ -225,19 +229,36 @@ func (self *ProviderConnection) doSwipe(udid string, x1 int, y1 int, x2 int, y2 
 	self.provChan <- swipe
 }
 
-func (self *ProviderConnection) doText(udid string, text string, onDone func(uj.JNode, []byte)) {
-	action := &ProvText{
-		udid:  udid,
-		text:  text,
-		onRes: onDone,
-	}
-	self.provChan <- action
-}
-
 func (self *ProviderConnection) startImgStream(udid string) {
 	self.provChan <- &ProvStartStream{udid: udid}
 }
 
 func (self *ProviderConnection) stopImgStream(udid string) {
 	self.provChan <- &ProvStopStream{udid: udid}
+}
+
+//=====================LT Changes==========================
+func (self *ProviderConnection) doRefresh(udid string, onDone func(uj.JNode, []byte)) {
+	action := &ProvRefresh{
+		udid:  udid,
+		onRes: onDone,
+	}
+	self.provChan <- action
+}
+
+func (self *ProviderConnection) doRestart(udid string, onDone func(uj.JNode, []byte)) {
+	action := &ProvRestart{
+		udid:  udid,
+		onRes: onDone,
+	}
+	self.provChan <- action
+}
+
+func (self *ProviderConnection) doOpenSafariUrl(udid string, url string, onDone func(uj.JNode, []byte)) {
+	action := &ProvSafariUrl{
+		udid:  udid,
+		url:   url,
+		onRes: onDone,
+	}
+	self.provChan <- action
 }
