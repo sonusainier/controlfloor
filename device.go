@@ -58,9 +58,16 @@ func (self *DevHandler) registerDeviceRoutes() {
 
 	//uAuth.GET("/devClick", showDevClick )
 	uAuth.POST("/device/click", func(c *gin.Context) { self.handleDevClick(c) })
+	uAuth.POST("/device/doubleclick", func(c *gin.Context) { self.handleDevDoubleclick(c) })
+	uAuth.POST("/device/mouseDown", func(c *gin.Context) { self.handleDevMouseDown(c) })
+	uAuth.POST("/device/mouseUp", func(c *gin.Context) { self.handleDevMouseUp(c) })
 	uAuth.POST("/device/hardPress", func(c *gin.Context) { self.handleDevHardPress(c) })
 	uAuth.POST("/device/longPress", func(c *gin.Context) { self.handleDevLongPress(c) })
 	uAuth.POST("/device/home", func(c *gin.Context) { self.handleDevHome(c) })
+	uAuth.POST("/device/taskSwitcher", func(c *gin.Context) { self.handleDevTaskSwitcher(c) })
+	uAuth.POST("/device/shake", func(c *gin.Context) { self.handleDevShake(c) })
+	uAuth.POST("/device/cc", func(c *gin.Context) { self.handleDevCC(c) })
+	uAuth.POST("/device/assistiveTouch", func(c *gin.Context) { self.handleDevAssistiveTouch(c) })
 	uAuth.POST("/device/swipe", func(c *gin.Context) { self.handleDevSwipe(c) })
 	uAuth.POST("/device/keys", func(c *gin.Context) { self.handleKeys(c) })
 	uAuth.POST("/device/text", func(c *gin.Context) { self.handleText(c) })
@@ -68,9 +75,10 @@ func (self *DevHandler) registerDeviceRoutes() {
 	uAuth.POST("/device/shutdown", func(c *gin.Context) { self.handleShutdown(c) })
 
 	uAuth.GET("/device/info", func(c *gin.Context) { self.showDevInfo(c) })
-	uAuth.GET("/device/info/json", func(c *gin.Context) { self.showDevInfoJson(c) })
 	aAuth.GET("/device", func(c *gin.Context) { self.showDevAdmin(c) })
 	aAuth.GET("/deviceApps", func(c *gin.Context) { self.showDevApps(c) })
+
+	uAuth.GET("/device/info/json", func(c *gin.Context) { self.showDevInfoJson(c) })
 
 	uAuth.GET("/device/imgStream", func(c *gin.Context) { self.handleImgStream(c) })
 	uAuth.GET("/device/ws", func(c *gin.Context) { self.handleDevWs(c) })
@@ -92,7 +100,7 @@ func (self *DevHandler) registerDeviceRoutes() {
 	uAuth.GET("/device/wdaPort", self.showWdaPort)
 	uAuth.GET("/device/refresh", self.handleDeviceRefresh)
 	uAuth.GET("/device/restart", self.handleDeviceRestart)
-
+	uAuth.POST("/device/launchsafariurl", func(c *gin.Context) { self.handleSafariUrl(c) })
 }
 
 type SRawInfo struct {
@@ -131,16 +139,7 @@ type SDeviceWdaPort struct {
 	Udid    string `json:"udid"        example:"00008100-001338811EE10033"`
 	WdaPort int    `json:"wdaPort"     example:"8107"`
 	Ip      string `json:"ip"          example:"unknown or x.x.x.x"`
-}
-
-type SDeviceRefresh struct {
-	Udid    string `json:"udid"        example:"00008100-001338811EE10033"`
-	Refresh string `json:"refresh"          example:"unknown or x.x.x.x"`
-}
-
-type SDeviceRestart struct {
-	Udid    string `json:"udid"        example:"00008100-001338811EE10033"`
-	Restart string `json:"restart"          example:"unknown or x.x.x.x"`
+	Mac     string `json:"mac"         example:"mac address..."`
 }
 
 func (self *DevHandler) showWdaPort(c *gin.Context) {
@@ -172,11 +171,13 @@ func (self *DevHandler) showWdaPort(c *gin.Context) {
 	done := make(chan bool)
 
 	ip := "unknown"
+	mac := "unknown"
 
 	pc.doWifiIp(udid, func(_ uj.JNode, json []byte) {
 		root, _ := uj.Parse(json)
 
 		ip = root.Get("ip").String()
+		mac = root.Get("mac").String()
 
 		done <- true
 	})
@@ -189,10 +190,16 @@ func (self *DevHandler) showWdaPort(c *gin.Context) {
 		Udid:    udid,
 		WdaPort: port,
 		Ip:      ip,
+		Mac:     mac,
 	})
 }
 
-func (self *DevHandler) handleDeviceRefresh(c *gin.Context) {
+// @Summary Device - Device info JSON
+// @Router /device/info/json [GET]
+// @Param udid query string true "Device UDID"
+// @Produce json
+// @Success 200 {object} SDeviceInfo
+func (self *DevHandler) showDevInfoJson(c *gin.Context) {
 	udid, uok := c.GetQuery("udid")
 	if !uok {
 		c.JSON(http.StatusOK, SDeviceInfoFail{
@@ -211,94 +218,110 @@ func (self *DevHandler) handleDeviceRefresh(c *gin.Context) {
 		return
 	}
 
-	//
+	info := dev.JsonInfo
+
+	stat := self.devTracker.getDevStatus(udid)
+	wdaUp := "-"
+	cfaUp := "-"
+	videoUp := "-"
+	if stat != nil {
+		wdaUp = "up"
+		if !stat.wda {
+			wdaUp = "down"
+		}
+		cfaUp = "up"
+		if !stat.cfa {
+			cfaUp = "down"
+		}
+		videoUp = "up"
+		if !stat.video {
+			videoUp = "down"
+		}
+	}
 
 	provId := self.devTracker.getDevProvId(udid)
-	pc := self.devTracker.getProvConn(provId)
 
-	done := make(chan bool)
-
-	refresh := "unknown"
-
-	pc.doRefresh(udid, func(_ uj.JNode, json []byte) {
-		root, _ := uj.Parse(json)
-
-		refresh = root.Get("refresh").String()
-
-		done <- true
-	})
-
-	<-done
-
-	//
-
-	c.JSON(http.StatusOK, SDeviceRefresh{
-		Udid:    udid,
-		Refresh: refresh,
+	c.JSON(http.StatusOK, SDeviceInfo{
+		Udid:        udid,
+		Name:        dev.Name,
+		ClickWidth:  dev.ClickWidth,
+		ClickHeight: dev.ClickHeight,
+		VidWidth:    dev.Width,
+		VidHeight:   dev.Height,
+		Provider:    int(provId),
+		RawInfo:     info,
+		WdaStatus:   wdaUp,
+		CfaStatus:   cfaUp,
+		VideoStatus: videoUp,
+		DeviceVideo: self.config.text.deviceVideo,
 	})
 }
 
-func (self *DevHandler) handleDeviceRestart(c *gin.Context) {
+// @Summary Device - Device info page
+// @Router /device/info [GET]
+// @Param udid query string true "Device UDID"
+func (self *DevHandler) showDevInfo(c *gin.Context) {
 	udid, uok := c.GetQuery("udid")
 	if !uok {
-		c.JSON(http.StatusOK, SDeviceInfoFail{
-			Success: false,
-			Err:     "Must pass udid",
+		c.HTML(http.StatusOK, "devInfo", gin.H{
+			"udid":        "?",
+			"name":        "?",
+			"clickWidth":  "?",
+			"clickHeight": "?",
 		})
 		return
 	}
 
 	dev := getDevice(udid)
 	if dev == nil {
-		c.JSON(http.StatusOK, SDeviceInfoFail{
-			Success: false,
-			Err:     "No device with that udid",
+		c.HTML(http.StatusOK, "error", gin.H{
+			"text": "no dev with that udid",
 		})
 		return
 	}
 
+	info := dev.JsonInfo
+	if info != "" {
+		var obj map[string]interface{}
+		json.Unmarshal([]byte(info), &obj)
+		infoBytes, _ := json.MarshalIndent(obj, "<br>", " &nbsp; &nbsp; &nbsp; ")
+		info = string(infoBytes)
+	}
+
+	stat := self.devTracker.getDevStatus(udid)
+	wdaUp := "-"
+	cfaUp := "-"
+	videoUp := "-"
+	if stat != nil {
+		wdaUp = "up"
+		if !stat.wda {
+			wdaUp = "down"
+		}
+		cfaUp = "up"
+		if !stat.cfa {
+			cfaUp = "down"
+		}
+		videoUp = "up"
+		if !stat.video {
+			videoUp = "down"
+		}
+	}
+
 	provId := self.devTracker.getDevProvId(udid)
-	pc := self.devTracker.getProvConn(provId)
 
-	done := make(chan bool)
-
-	restart := "false"
-	pc.doRestart(udid, func(_ uj.JNode, json []byte) {
-		root, _ := uj.Parse(json)
-
-		restart = root.Get("restart").String()
-
-		done <- true
-	})
-
-	<-done
-
-	//
-
-	c.JSON(http.StatusOK, SDeviceRestart{
-		Udid:    udid,
-		Restart: restart,
-	})
-}
-
-// @Summary Device - Launch app
-// @Router /device/launch [POST]
-// @Param udid formData string true "Device UDID"
-// @Param bid formData string true "[bundle id]"
-func (self *DevHandler) handleDevLaunch(c *gin.Context) {
-	bid := c.PostForm("bid")
-	pc, udid := self.getPc(c)
-
-	done := make(chan bool)
-
-	pc.doLaunch(udid, bid, func(uj.JNode, []byte) {
-		done <- true
-	})
-
-	<-done
-
-	c.HTML(http.StatusOK, "error", gin.H{
-		"text": "ok",
+	c.HTML(http.StatusOK, "devInfo", gin.H{
+		"udid":        udid,
+		"name":        dev.Name,
+		"clickWidth":  dev.ClickWidth,
+		"clickHeight": dev.ClickHeight,
+		"vidWidth":    dev.Width,
+		"vidHeight":   dev.Height,
+		"provider":    provId,
+		"info":        info,
+		"wdaStatus":   wdaUp,
+		"cfaStatus":   cfaUp,
+		"videoStatus": videoUp,
+		"deviceVideo": self.config.text.deviceVideo,
 	})
 }
 
@@ -423,200 +446,6 @@ func (self *DevHandler) showDevApps(c *gin.Context) {
 	})
 }
 
-// @Summary Device - Kill app
-// @Router /device/kill [POST]
-// @Param udid formData string true "Device UDID"
-// @Param bid formData string true "[bundle id]"
-func (self *DevHandler) handleDevKill(c *gin.Context) {
-	bid := c.PostForm("bid")
-	pc, udid := self.getPc(c)
-
-	done := make(chan bool)
-
-	pc.doKill(udid, bid, func(uj.JNode, []byte) {
-		done <- true
-	})
-
-	<-done
-
-	c.HTML(http.StatusOK, "error", gin.H{
-		"text": "ok",
-	})
-}
-
-// @Summary Device - Device info JSON
-// @Router /device/info/json [GET]
-// @Param udid query string true "Device UDID"
-// @Produce json
-// @Success 200 {object} SDeviceInfo
-func (self *DevHandler) showDevInfoJson(c *gin.Context) {
-	udid, uok := c.GetQuery("udid")
-	if !uok {
-		c.JSON(http.StatusOK, SDeviceInfoFail{
-			Success: false,
-			Err:     "Must pass udid",
-		})
-		return
-	}
-
-	dev := getDevice(udid)
-	if dev == nil {
-		c.JSON(http.StatusOK, SDeviceInfoFail{
-			Success: false,
-			Err:     "No device with that udid",
-		})
-		return
-	}
-
-	info := dev.JsonInfo
-
-	stat := self.devTracker.getDevStatus(udid)
-	wdaUp := "-"
-	cfaUp := "-"
-	videoUp := "-"
-	if stat != nil {
-		wdaUp = "up"
-		if !stat.wda {
-			wdaUp = "down"
-		}
-		cfaUp = "up"
-		if !stat.cfa {
-			cfaUp = "down"
-		}
-		videoUp = "up"
-		if !stat.video {
-			videoUp = "down"
-		}
-	}
-
-	provId := self.devTracker.getDevProvId(udid)
-
-	c.JSON(http.StatusOK, SDeviceInfo{
-		Udid:        udid,
-		Name:        dev.Name,
-		ClickWidth:  dev.ClickWidth,
-		ClickHeight: dev.ClickHeight,
-		VidWidth:    dev.Width,
-		VidHeight:   dev.Height,
-		Provider:    int(provId),
-		RawInfo:     info,
-		WdaStatus:   wdaUp,
-		CfaStatus:   cfaUp,
-		VideoStatus: videoUp,
-		DeviceVideo: self.config.text.deviceVideo,
-	})
-}
-
-// @Summary Device - Restrict app
-// @Router /device/restrictApp [POST]
-// @Param udid formData string true "Device UDID"
-// @Param bid formData string true "[bundle id]"
-func (self *DevHandler) handleDevRestrictApp(c *gin.Context) {
-	bid := c.PostForm("bid")
-	pc, udid := self.getPc(c)
-
-	done := make(chan bool)
-
-	pc.doRestrictApp(udid, bid, func(uj.JNode, []byte) {
-		done <- true
-	})
-
-	<-done
-
-	c.HTML(http.StatusOK, "error", gin.H{
-		"text": "ok",
-	})
-}
-
-// @Summary Device - Allow app
-// @Router /device/allowApp [POST]
-// @Param udid formData string true "Device UDID"
-// @Param bid formData string true "[bundle id]"
-func (self *DevHandler) handleDevAllowApp(c *gin.Context) {
-	bid := c.PostForm("bid")
-	pc, udid := self.getPc(c)
-
-	done := make(chan bool)
-
-	pc.doAllowApp(udid, bid, func(uj.JNode, []byte) {
-		done <- true
-	})
-
-	<-done
-
-	c.HTML(http.StatusOK, "error", gin.H{
-		"text": "ok",
-	})
-}
-
-// @Summary Device - Device info page
-// @Router /device/info [GET]
-// @Param udid query string true "Device UDID"
-func (self *DevHandler) showDevInfo(c *gin.Context) {
-	udid, uok := c.GetQuery("udid")
-	if !uok {
-		c.HTML(http.StatusOK, "devInfo", gin.H{
-			"udid":        "?",
-			"name":        "?",
-			"clickWidth":  "?",
-			"clickHeight": "?",
-		})
-		return
-	}
-
-	dev := getDevice(udid)
-	if dev == nil {
-		c.HTML(http.StatusOK, "error", gin.H{
-			"text": "no dev with that udid",
-		})
-		return
-	}
-
-	info := dev.JsonInfo
-	if info != "" {
-		var obj map[string]interface{}
-		json.Unmarshal([]byte(info), &obj)
-		infoBytes, _ := json.MarshalIndent(obj, "<br>", " &nbsp; &nbsp; &nbsp; ")
-		info = string(infoBytes)
-	}
-
-	stat := self.devTracker.getDevStatus(udid)
-	wdaUp := "-"
-	cfaUp := "-"
-	videoUp := "-"
-	if stat != nil {
-		wdaUp = "up"
-		if !stat.wda {
-			wdaUp = "down"
-		}
-		cfaUp = "up"
-		if !stat.cfa {
-			cfaUp = "down"
-		}
-		videoUp = "up"
-		if !stat.video {
-			videoUp = "down"
-		}
-	}
-
-	provId := self.devTracker.getDevProvId(udid)
-
-	c.HTML(http.StatusOK, "devInfo", gin.H{
-		"udid":        udid,
-		"name":        dev.Name,
-		"clickWidth":  dev.ClickWidth,
-		"clickHeight": dev.ClickHeight,
-		"vidWidth":    dev.Width,
-		"vidHeight":   dev.Height,
-		"provider":    provId,
-		"info":        info,
-		"wdaStatus":   wdaUp,
-		"cfaStatus":   cfaUp,
-		"videoStatus": videoUp,
-		"deviceVideo": self.config.text.deviceVideo,
-	})
-}
-
 func (self *DevHandler) getPc(c *gin.Context) (*ProviderConnection, string) {
 	udid := c.PostForm("udid")
 	provId := self.devTracker.getDevProvId(udid)
@@ -665,22 +494,112 @@ func (self *DevHandler) handleDevClick(c *gin.Context) {
 	})
 }
 
-// @Summary Device - List device restricted apps
-// @Router /device/listRestrictedApps [GET]
+// @Summary Device - Doubleclick coordinate
+// @Router /device/doubleclick [POST]
 // @Param udid formData string true "Device UDID"
-func (self *DevHandler) handleDevListRestrictedApps(c *gin.Context) {
-	pc, udid := self.getPcGET(c)
+// @Param x formData int true "x"
+// @Param y formData int true "y"
+func (self *DevHandler) handleDevDoubleclick(c *gin.Context) {
+	x, _ := strconv.Atoi(c.PostForm("x"))
+	y, _ := strconv.Atoi(c.PostForm("y"))
+	fmt.Printf("Request proto %s\n", c.Request.Proto)
+	pc, udid := self.getPc(c)
 
 	done := make(chan bool)
 
-	pc.doListRestrictedApps(udid, func(_ uj.JNode, raw []byte) {
-		c.Writer.Header().Set("Content-Type", "text/json; charset=utf-8")
-		c.Writer.WriteHeader(200)
-		c.Writer.Write(raw)
+	pc.doDoubleclick(udid, x, y, func(uj.JNode, []byte) {
 		done <- true
 	})
 
 	<-done
+
+	c.HTML(http.StatusOK, "error", gin.H{
+		"text": "ok",
+	})
+}
+
+// @Summary Device - Launch app
+// @Router /device/launch [POST]
+// @Param udid formData string true "Device UDID"
+// @Param bid formData string true "[bundle id]"
+func (self *DevHandler) handleDevLaunch(c *gin.Context) {
+	bid := c.PostForm("bid")
+	pc, udid := self.getPc(c)
+
+	done := make(chan bool)
+
+	pc.doLaunch(udid, bid, func(uj.JNode, []byte) {
+		done <- true
+	})
+
+	<-done
+
+	c.HTML(http.StatusOK, "error", gin.H{
+		"text": "ok",
+	})
+}
+
+// @Summary Device - Kill app
+// @Router /device/kill [POST]
+// @Param udid formData string true "Device UDID"
+// @Param bid formData string true "[bundle id]"
+func (self *DevHandler) handleDevKill(c *gin.Context) {
+	bid := c.PostForm("bid")
+	pc, udid := self.getPc(c)
+
+	done := make(chan bool)
+
+	pc.doKill(udid, bid, func(uj.JNode, []byte) {
+		done <- true
+	})
+
+	<-done
+
+	c.HTML(http.StatusOK, "error", gin.H{
+		"text": "ok",
+	})
+}
+
+// @Summary Device - Restrict app
+// @Router /device/restrictApp [POST]
+// @Param udid formData string true "Device UDID"
+// @Param bid formData string true "[bundle id]"
+func (self *DevHandler) handleDevRestrictApp(c *gin.Context) {
+	bid := c.PostForm("bid")
+	pc, udid := self.getPc(c)
+
+	done := make(chan bool)
+
+	pc.doRestrictApp(udid, bid, func(uj.JNode, []byte) {
+		done <- true
+	})
+
+	<-done
+
+	c.HTML(http.StatusOK, "error", gin.H{
+		"text": "ok",
+	})
+}
+
+// @Summary Device - Allow app
+// @Router /device/allowApp [POST]
+// @Param udid formData string true "Device UDID"
+// @Param bid formData string true "[bundle id]"
+func (self *DevHandler) handleDevAllowApp(c *gin.Context) {
+	bid := c.PostForm("bid")
+	pc, udid := self.getPc(c)
+
+	done := make(chan bool)
+
+	pc.doAllowApp(udid, bid, func(uj.JNode, []byte) {
+		done <- true
+	})
+
+	<-done
+
+	c.HTML(http.StatusOK, "error", gin.H{
+		"text": "ok",
+	})
 }
 
 // @Summary Device - Mouse down
@@ -752,7 +671,18 @@ func (self *DevHandler) handleDevLongPress(c *gin.Context) {
 	time, _ := strconv.ParseFloat(c.PostForm("time"), 64)
 
 	pc, udid := self.getPc(c)
-	pc.doLongPress(udid, x, y, time)
+
+	done := make(chan bool)
+
+	pc.doLongPress(udid, x, y, time, func(uj.JNode, []byte) {
+		done <- true
+	})
+
+	<-done
+
+	c.HTML(http.StatusOK, "error", gin.H{
+		"text": "ok",
+	})
 }
 
 // @Summary Device click
@@ -935,6 +865,24 @@ func (self *DevHandler) handleSource(c *gin.Context) {
 	done := make(chan bool)
 
 	pc.doSource(udid, func(_ uj.JNode, raw []byte) {
+		c.Writer.Header().Set("Content-Type", "text/json; charset=utf-8")
+		c.Writer.WriteHeader(200)
+		c.Writer.Write(raw)
+		done <- true
+	})
+
+	<-done
+}
+
+// @Summary Device - List device restricted apps
+// @Router /device/listRestrictedApps [GET]
+// @Param udid formData string true "Device UDID"
+func (self *DevHandler) handleDevListRestrictedApps(c *gin.Context) {
+	pc, udid := self.getPcGET(c)
+
+	done := make(chan bool)
+
+	pc.doListRestrictedApps(udid, func(_ uj.JNode, raw []byte) {
 		c.Writer.Header().Set("Content-Type", "text/json; charset=utf-8")
 		c.Writer.WriteHeader(200)
 		c.Writer.Write(raw)
