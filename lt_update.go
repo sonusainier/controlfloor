@@ -36,6 +36,34 @@ func (self *ProvSafariUrl) asText(id int16) string {
 	return string(res)
 }
 
+type ProvBrowserCleanUpMsg struct {
+	Id   int16  `json:"id"`
+	Type string `json:"type"`
+	Udid string `json:"udid"`
+	Bid  string `json:"bid"`
+}
+
+type ProvBrowserCleanup struct {
+	udid  string
+	bid   string
+	onRes func(uj.JNode, []byte)
+}
+
+func (self *ProvBrowserCleanup) resHandler() func(data uj.JNode, rawData []byte) {
+	return self.onRes
+}
+func (self *ProvBrowserCleanup) needsResponse() bool { return true }
+func (self *ProvBrowserCleanup) asText(id int16) string {
+	msg := ProvBrowserCleanUpMsg{
+		Id:   id,
+		Type: "cleanbrowser",
+		Udid: self.udid,
+		Bid:  self.bid,
+	}
+	res, _ := json.Marshal(msg)
+	return string(res)
+}
+
 type SDeviceRefresh struct {
 	Udid    string `json:"udid"        example:"00008100-001338811EE10033"`
 	Refresh string `json:"refresh"          example:"unknown or x.x.x.x"`
@@ -146,6 +174,27 @@ func (self *DevHandler) handleSafariUrl(c *gin.Context) {
 	done := make(chan bool)
 
 	pc.doOpenSafariUrl(udid, url, func(uj.JNode, []byte) {
+		done <- true
+	})
+
+	<-done
+
+	c.HTML(http.StatusOK, "error", gin.H{
+		"text": "ok",
+	})
+}
+
+// @Summary Device - Launch url in safari app
+// @Router /device/cleansafari [POST]
+// @Param udid formData string true "Device UDID"
+// @Param bid formData string true "[bundle id]"
+func (self *DevHandler) handleBrowserCleanup(c *gin.Context) {
+	bid := c.PostForm("bid")
+	pc, udid := self.getPc(c)
+
+	done := make(chan bool)
+
+	pc.doBrowserCleanup(udid, bid, func(uj.JNode, []byte) {
 		done <- true
 	})
 

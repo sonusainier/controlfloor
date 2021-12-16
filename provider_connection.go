@@ -262,3 +262,12 @@ func (self *ProviderConnection) doOpenSafariUrl(udid string, url string, onDone 
 	}
 	self.provChan <- action
 }
+
+func (self *ProviderConnection) doBrowserCleanup(udid string, bid string, onDone func(uj.JNode, []byte)) {
+	action := &ProvBrowserCleanup{
+		udid:  udid,
+		bid:   bid,
+		onRes: onDone,
+	}
+	self.provChan <- action
+}
