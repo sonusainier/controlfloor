@@ -34,10 +34,10 @@ my @icons = qw/
   mdi-circle-box
   mdi-arrow-left-bold
   mdi-bomb
-  mdi-format-list-textbox
+  mdi-format-list-checkbox
   mdi-cellphone-play
   mdi-clipboard-text
-  mdi-settings
+  mdi-cog
   mdi-account-supervisor
   mdi-account-circle
 /;
@@ -53,11 +53,18 @@ $out .= "var iconify_icons = {\n";
 for my $fullname ( @icons ) {
   if( $fullname =~ m/([a-z]+)-(.+)/ ) {
     my $set_name = $1;
-    my $icon_name = $2;
+    my $icon_name = "$set_name-$2";
     my $set = $sethash{ $set_name };
-    my $body = $set->{ $icon_name };
+    my $info = $set->{ $icon_name };
+    if( !$info ) {
+      print "Missing $icon_name\n";
+      next;
+    }
+    my $body = $info->{data};
+    my $w = $info->{w};
+    my $h = $info->{h};
     $body =~ s/`/"/g;
-    $out .= "  \"$icon_name\": '$body',\n";
+    $out .= "  \"$icon_name\": [$w,$h,'$body'],\n";
   }
 }
 $out .= "  \"end\":0\n";
@@ -72,13 +79,16 @@ sub read_set {
   my $json = read_file( $json_path );
   $json =~ s/\\"/`/g;
   my $root = Ujsonin::parse( $json );
+  my $w = $root->{width};
+  my $h = $root->{height};
   #print Dumper( $root );
   my $icons = $root->{ icons };
   for my $icon ( keys %$icons ) {
     #print "$icon\n";
+    next if( $icon =~ /~\_/ );
     my $data = $icons->{ $icon };
     next if( ref( $data ) ne 'HASH' );
-    $hash{ $icon } = $data->{body};
+    $hash{ "$name-$icon" } = { data => $data->{body}, w => $w, h => $h };;
   }
   return \%hash;
 }

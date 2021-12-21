@@ -80,6 +80,7 @@ func (self *DevHandler) registerDeviceRoutes() {
     uAuth.GET("/device/info/json",    func( c *gin.Context ) { self.showDevInfoJson( c ) } )
     
     uAuth.GET("/device/imgStream",    func( c *gin.Context ) { self.handleImgStream( c ) } )
+    uAuth.POST("/device/initWebrtc",  func( c *gin.Context ) { self.handleWebrtc( c ) } )
     uAuth.GET("/device/ws",           func( c *gin.Context ) { self.handleDevWs( c ) } )
     
     uAuth.POST("/device/launch",      func( c *gin.Context ) { self.handleDevLaunch( c ) } )
@@ -90,6 +91,7 @@ func (self *DevHandler) registerDeviceRoutes() {
     aAuth.GET("/device/listRestrictedApps", func( c *gin.Context ) { self.handleDevListRestrictedApps( c ) } )
     
     uAuth.GET("/device/video", self.showDevVideo )
+    uAuth.GET("/device/videoNew", self.showDevVideoNew )
     uAuth.GET("/device/reserved", self.showDevReservedTest )
     uAuth.GET("/device/kick", self.devKick )
     uAuth.POST("/device/videoStop", self.stopDevVideo )
@@ -832,6 +834,23 @@ func (self *DevHandler) handleText( c *gin.Context ) {
     } )
 }
 
+func (self *DevHandler) handleWebrtc( c *gin.Context ) {
+    pc, udid := self.getPc( c )
+    
+    offer := c.PostForm("offer")
+    
+    done := make( chan bool )
+    
+    pc.initWebrtc( udid, offer, func( _ uj.JNode, raw []byte ) {
+        c.Writer.Header().Set("Content-Type", "text/json; charset=utf-8")
+        c.Writer.WriteHeader(200)
+        c.Writer.Write( raw )
+        done <- true
+    } )
+    
+    <- done
+}
+
 // @Summary Device - Get device source
 // @Router /device/source [GET]
 // @Param udid formData string true "Device UDID"
@@ -1003,6 +1022,71 @@ func (self *DevHandler) showDevVideo( c *gin.Context ) {
     }
     
     c.HTML( http.StatusOK, "devVideo", gin.H{
+        "udid":        udid,
+        "clickWidth":  dev.ClickWidth,
+        "clickHeight": dev.ClickHeight,
+        "vidWidth":    dev.Width,
+        "vidHeight":   dev.Height,
+        "rid":         rid,
+        "idleTimeout": self.devTracker.config.idleTimeout,
+        "maxHeight":   self.config.maxHeight,
+        "deviceVideo": self.config.text.deviceVideo,
+        "info":        info,
+        "rawInfo":     rawInfo,
+        "notes":       notesText,
+    } )
+}
+
+// @Summary Device - New Video Page
+// @Router /device/videoNew [GET]
+// @Param udid query string true "Device UDID"
+func (self *DevHandler) showDevVideoNew( c *gin.Context ) {
+    udid, uok := c.GetQuery("udid")
+    if !uok {
+        c.HTML( http.StatusOK, "error", gin.H{
+            "text": "no uuid set",
+        } )
+        return
+    }
+    
+    dev := getDevice( udid )
+    
+    sCtx := self.sessionManager.GetSession( c )
+    user := self.sessionManager.session.Get( sCtx, "user" ).(string)
+    fmt.Printf("Reserving device %s for %s\n", udid, user )
+    rid := RandStringBytes( 10 )
+    success := addReservation( udid, user, rid )
+    
+    if !success {
+        rv := getReservation( udid )
+        
+        if rv.User != user {
+            c.HTML( http.StatusOK, "devReserved", gin.H{
+                "udid": udid,
+                "user": rv.User,
+            } )
+            return
+        }
+        fmt.Printf("Renewing reservation\n")
+        deleteReservation( udid )
+        addReservation( udid, user, rid )
+    }
+    
+    rawInfo := dev.JsonInfo
+    info := "{}"
+    if rawInfo != "" {
+      var obj map[string]interface{}
+        json.Unmarshal([]byte(rawInfo), &obj)
+        infoBytes, _ := json.MarshalIndent(obj, "<br>", " &nbsp; &nbsp; &nbsp; ")
+        info = string( infoBytes )
+    }
+    
+    notesText := "{}"
+    if self.config.notes != nil {
+        notesText = self.config.notes.JsonSave()
+    }
+    
+    c.HTML( http.StatusOK, "devVideoNew", gin.H{
         "udid":        udid,
         "clickWidth":  dev.ClickWidth,
         "clickHeight": dev.ClickHeight,
