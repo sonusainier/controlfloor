@@ -122,32 +122,36 @@ func (self *ReqTracker) sendReq( req ProvBase ) (error) {
     return err
 }
 
-func (self *ReqTracker) processResp( msgType int, reqText []byte ) {
+func (self *ReqTracker) processResp( msgType int, reqText []byte ) uj.JNode {
     if !strings.Contains( string(reqText), "pong" ) {
         fmt.Printf( "received %s\n", string(reqText) )
     }
     
     if len( reqText ) == 0 {
-        return
+        return nil
     }
     c1 := string( []byte{ reqText[0] } )
     if c1 != "{" {
-        return
+        return nil
     }
     last1 := string( []byte{ reqText[ len( reqText ) - 1 ] } )
     last2 := string( []byte{ reqText[ len( reqText ) - 2 ] } )
     if last1 != "}" && last2 != "}" {
         fmt.Printf("response not json; last1=%s\n", last1)
-        return
+        return nil
     }
     
     root, _, err := uj.ParseFull( reqText )
     if err != nil {
         fmt.Printf("Could not parse response as json\n")
-        return
+        return nil
     }
     
     id := root.Get("id").Int()
+    
+    if id == 0 {
+        return root
+    }
     
     req := self.reqMap[ int16(id) ]
     resHandler := req.resHandler()
@@ -161,6 +165,7 @@ func (self *ReqTracker) processResp( msgType int, reqText []byte ) {
     // deserialize the reqText to get the id
     // fetch the original request from the reqMap
     // respond to the original request if needed
+    return nil
 }
 
 const (
@@ -473,7 +478,11 @@ func (self *ProviderHandler) handleProviderWS( c *gin.Context ) {
         if err != nil {
             amDone = true
         } else {
-            reqTracker.processResp( t, msg )
+            jsonroot := reqTracker.processResp( t, msg )
+            if jsonroot != nil {
+                // This is not a response; is a request from provider
+                
+            }
         }
         
         if amDone { break }
