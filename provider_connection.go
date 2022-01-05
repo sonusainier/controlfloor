@@ -122,6 +122,15 @@ func (self *ProviderConnection) doHardPress(udid string, x int, y int) {
 	self.provChan <- click
 }
 
+func (self *ProviderConnection) initWebrtc(udid string, offer string, onDone func(uj.JNode, []byte)) {
+	action := &ProvInitWebrtc{
+		udid:  udid,
+		offer: offer,
+		onRes: onDone,
+	}
+	self.provChan <- action
+}
+
 func (self *ProviderConnection) doLongPress(udid string, x int, y int, time float64, onDone func(uj.JNode, []byte)) {
 	click := &ProvLongPress{
 		udid:  udid,
