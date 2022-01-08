@@ -18,7 +18,7 @@ require (
 	github.com/gorilla/websocket v1.4.2
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible
-	github.com/nanoscopic/controlfloor/docs v0.0.0-00010101000000-000000000000
+	github.com/nanoscopic/controlfloor/docs v0.0.0
 	github.com/nanoscopic/controlfloor_auth v1.1.0
     github.com/nanoscopic/controlfloor_auth_admin v1.1.0
 	github.com/nanoscopic/uclop v1.1.0
