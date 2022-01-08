@@ -15,7 +15,10 @@ jobs:
           go-version: 1.17
       - uses: actions/checkout@v2
       - name: Install dependencies
-        uses: actions/setup-go@v1
+        run: |
+          go version
+          go get -u github.com/golang/dep/cmd/dep
+          dep ensure
       - name: Build
         run: |
           go build -o controlfloor .
