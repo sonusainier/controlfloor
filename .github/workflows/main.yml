@@ -14,4 +14,4 @@ jobs:
         uses: actions/setup-go@v1
       - name: Build
         run: |
-          go build -o controlfloor .
+          go build -o bin/main
