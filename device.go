@@ -1330,7 +1330,7 @@ func (self *DevHandler) handleDevStatus( c *gin.Context, ) {
     //status := c.PostForm("status")
     variant := c.Param("variant")
     
-    fmt.Printf("devStatus request; variant=%s\n", variant )
+    //fmt.Printf("devStatus request; variant=%s\n", variant )
     
     var ok struct {
         ok bool
@@ -1338,48 +1338,48 @@ func (self *DevHandler) handleDevStatus( c *gin.Context, ) {
     ok.ok = true
     
     udid := c.PostForm("udid")
-    fmt.Printf("  udid=%s\n", udid )
+    //fmt.Printf("  udid=%s\n", udid )
 
     if variant == "exists" {
-        fmt.Printf("Notified that device %s exists\n", udid )
+        fmt.Printf("Device Status: Provider started - udid: %s - provider: %s\n", udid, provider.User )
         width, _       := strconv.Atoi( c.PostForm("width") )
         height, _      := strconv.Atoi( c.PostForm("height") )
         clickWidth, _  := strconv.Atoi( c.PostForm("clickWidth") )
         clickHeight, _ := strconv.Atoi( c.PostForm("clickHeight") )
-        addDevice( udid, "unknown", provider.Id, width, height, clickWidth, clickHeight )
+        addDevice( udid, "unknown", provider.Id, provider.User, width, height, clickWidth, clickHeight )
         self.devTracker.setDevProv( udid, provider.Id )
         c.JSON( http.StatusOK, ok )
         return
     }
     if variant == "info" {
         info := c.PostForm("info")
-        fmt.Printf("Device info for %s:\n%s\n", udid, info )
+        fmt.Printf("Device Status: Info - udid: %s\n%s\n", udid, info )
         updateDeviceInfo( udid, info, provider.Id )
         c.JSON( http.StatusOK, ok )
         return
     }
     if variant == "wdaStarted" {
         port, _ := strconv.Atoi( c.PostForm("port") )
-        fmt.Printf("WDA started for %s; port %d\n", udid, port )
+        fmt.Printf("Device Status: WDA started - udid: %s\n - port %d\n", udid, port )
         self.devTracker.setDevStatus( udid, "wda", true )
         updateDeviceWdaPort( udid, port )
         c.JSON( http.StatusOK, ok )
         return
     }
     if variant == "wdaStopped" {
-        fmt.Printf("WDA stopped for %s\n", udid )
+        fmt.Printf("Device Status: WDA stopped - udid: %s\n\n", udid )
         self.devTracker.setDevStatus( udid, "wda", false )
         c.JSON( http.StatusOK, ok )
         return
     }
     if variant == "cfaStarted" {
-        fmt.Printf("CFA started for %s\n", udid )
+        fmt.Printf("Device Status: CFA started - udid: %s\n\n", udid )
         self.devTracker.setDevStatus( udid, "cfa", true )
         c.JSON( http.StatusOK, ok )
         return
     }
     if variant == "cfaStopped" {
-        fmt.Printf("CFA stopped for %s\n", udid )
+        fmt.Printf("Device Status: CFA stopped - udid: %s\n\n", udid )
         self.devTracker.setDevStatus( udid, "cfa", false )
         c.JSON( http.StatusOK, ok )
         return
@@ -1391,13 +1391,13 @@ func (self *DevHandler) handleDevStatus( c *gin.Context, ) {
         return
     }
     if variant == "videoStopped" {
-        fmt.Printf("Video stopped for %s\n", udid )
+        fmt.Printf("Device Status: Video stopped - udid: %s\n\n", udid )
         self.devTracker.setDevStatus( udid, "video", false )
         c.JSON( http.StatusOK, ok )
         return
     }
     if variant == "provisionStopped" {
-        fmt.Printf("Provision stopped for %s\n", udid )
+        fmt.Printf("Device Status: Provider stopped - udid: %s\n\n", udid )
         self.devTracker.clearDevProv( udid )
         c.JSON( http.StatusOK, ok )
         return

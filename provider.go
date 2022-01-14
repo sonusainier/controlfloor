@@ -5,16 +5,18 @@ import (
     "fmt"
     "encoding/hex"
     "io"
-    mrand "math/rand"
     "net/http"
     "strconv"
-    "strings"
-    "sync"
     "time"
     ws "github.com/gorilla/websocket"
     uj "github.com/nanoscopic/ujsonin/v2/mod"
     "github.com/gin-gonic/gin"
 )
+
+type ProviderOb struct {
+    User string
+    Id int64
+}
 
 type ProviderHandler struct {
     r              *gin.Engine
@@ -60,7 +62,8 @@ func (self *ProviderHandler) NeedProviderAuth() gin.HandlerFunc {
     return func( c *gin.Context ) {
         sCtx := self.sessionManager.GetSession( c )
         
-        provider, ok := self.sessionManager.session.Get( sCtx, "provider" ).(ProviderOb)
+        _, ok := self.sessionManager.session.Get( sCtx, "provider" ).(ProviderOb)
+        // provider not used
         
         if !ok  {
             c.Redirect( 302, "/provider/login" )
@@ -68,7 +71,7 @@ func (self *ProviderHandler) NeedProviderAuth() gin.HandlerFunc {
             fmt.Println("provider fail")
             return
         } else {
-            fmt.Printf("provider user=%s\n", provider.User )
+            //fmt.Printf("provider user=%s\n", provider.User )
         }
         
         c.Next()
@@ -80,94 +83,6 @@ var wsupgrader = ws.Upgrader{
     WriteBufferSize: 1024,
 }
 
-type ReqTracker struct {
-    reqMap map[int16] ProvBase
-    lock *sync.Mutex
-    conn *ws.Conn
-}
-
-func NewReqTracker() (*ReqTracker) {
-    self := &ReqTracker{
-        reqMap: make( map[int16] ProvBase ),
-        lock: &sync.Mutex{},
-    }
-    
-    return self
-}
-
-func (self *ReqTracker) sendReq( req ProvBase ) (error) {
-    var reqText string
-    if req.needsResponse() {
-        var id int16
-        maxi := ^uint16(0) / 2
-        for {
-            id = int16( mrand.Int31n( int32(maxi-2) ) ) + 1
-            _, exists := self.reqMap[ id ]
-            if !exists { break }
-        }
-        
-        self.lock.Lock()
-        self.reqMap[ id ] = req
-        self.lock.Unlock()
-        reqText = req.asText( id )
-    } else {
-        reqText = req.asText( 0 )
-    }
-    
-    if !strings.Contains( reqText, "ping" ) {
-        fmt.Printf("sending %s\n", reqText )
-    }
-    // send the request
-    err := self.conn.WriteMessage( ws.TextMessage, []byte(reqText) )
-    return err
-}
-
-func (self *ReqTracker) processResp( msgType int, reqText []byte ) uj.JNode {
-    if !strings.Contains( string(reqText), "pong" ) {
-        fmt.Printf( "received %s\n", string(reqText) )
-    }
-    
-    if len( reqText ) == 0 {
-        return nil
-    }
-    c1 := string( []byte{ reqText[0] } )
-    if c1 != "{" {
-        return nil
-    }
-    last1 := string( []byte{ reqText[ len( reqText ) - 1 ] } )
-    last2 := string( []byte{ reqText[ len( reqText ) - 2 ] } )
-    if last1 != "}" && last2 != "}" {
-        fmt.Printf("response not json; last1=%s\n", last1)
-        return nil
-    }
-    
-    root, _, err := uj.ParseFull( reqText )
-    if err != nil {
-        fmt.Printf("Could not parse response as json\n")
-        return nil
-    }
-    
-    id := root.Get("id").Int()
-    
-    if id == 0 {
-        return root
-    }
-    
-    req := self.reqMap[ int16(id) ]
-    resHandler := req.resHandler()
-    if resHandler != nil {
-        resHandler( root, reqText )
-    }
-    
-    self.lock.Lock()
-    delete( self.reqMap, int16(id) )
-    self.lock.Unlock()
-    // deserialize the reqText to get the id
-    // fetch the original request from the reqMap
-    // respond to the original request if needed
-    return nil
-}
-
 const (
     CMKick = iota
     CMPing = iota
@@ -177,7 +92,6 @@ type ClientMsg struct {
     msgType int
     msg     string
 }
-
 
 type FrameMsg struct {
     msg int
@@ -459,7 +373,7 @@ func (self *ProviderHandler) handleProviderWS( c *gin.Context ) {
     
     amDone := false
     
-    fmt.Printf("got ws connection\n")
+    fmt.Printf( "Provider Connection Established - Provider:%s\n", provider.User )
     
     go func() { for {
         time.Sleep( time.Second * 5 )
@@ -470,7 +384,7 @@ func (self *ProviderHandler) handleProviderWS( c *gin.Context ) {
             }
         } )
         
-        if amDone { break }
+        if amDone { if provChan != nil { provChan <- nil }; break }
     } }()
     
     go func() { for {
@@ -485,20 +399,29 @@ func (self *ProviderHandler) handleProviderWS( c *gin.Context ) {
             }
         }
         
-        if amDone { break }
+        if amDone { if provChan != nil { provChan <- nil }; break }
     } }()
         
     for {
         ev := <- provChan
-        err := reqTracker.sendReq( ev )
+        if ev == nil {
+            provChan = nil
+            break
+        }
+        
+        err, reqText := reqTracker.sendReq( ev )
         if err != nil {
+            fmt.Printf("Failed to send request to provider\n" )
+            fmt.Printf("  Request data:%s\n", reqText )
+            fmt.Printf("  Error:%s\n", err )
+            provConn.provChan = nil
             amDone = true
             break
         }        
     }
     
     self.devTracker.clearProvConn( provider.Id )
-    fmt.Printf("lost ws connection\n")
+    fmt.Printf( "Provider Connection Lost - Provider:%s\n", provider.User )
 }
 
 func randHex() (string) {
@@ -552,11 +475,6 @@ func (self *ProviderHandler) handleRegister( c *gin.Context ) {
     c.JSON( http.StatusOK, json )
 }
 
-type ProviderOb struct {
-    User string
-    Id int64
-}
-
 // @Description Provider - Login
 // @Router /provider/login [POST]
 // @Param user query string true "Username"
@@ -577,7 +495,7 @@ func (self *ProviderHandler) handleProviderLogin( c *gin.Context ) {
     }
     
     if pass == provider.Password {
-        fmt.Printf("provider login ok\n")
+        //fmt.Printf("provider login ok\n")
         
         self.sessionManager.session.Put( s, "provider", &ProviderOb{
             User: user,
