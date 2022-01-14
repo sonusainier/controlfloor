@@ -1,8 +1,8 @@
 package main
 
 import (
-	//"fmt"
-	//ecies "github.com/ecies/go"
+	"fmt"
+
 	uj "github.com/nanoscopic/ujsonin/v2/mod"
 )
 
@@ -20,11 +20,20 @@ func NewProviderConnection(provChan chan ProvBase) *ProviderConnection {
 	return self
 }
 
+func errorChannelGone(message ProvBase) {
+	fmt.Printf("Failed to send message to provider:\n")
+	fmt.Printf("  %s\n", message.asText(0))
+}
+
 func (self *ProviderConnection) doPing(onDone func(uj.JNode, []byte)) {
 	ping := &ProvPing{
 		onRes: func(root uj.JNode, raw []byte) {
 			onDone(root, raw)
 		},
+	}
+	if self == nil || self.provChan == nil {
+		errorChannelGone(ping)
+		return
 	}
 	self.provChan <- ping
 }
@@ -36,6 +45,10 @@ func (self *ProviderConnection) doClick(udid string, x int, y int, onDone func(u
 		y:     y,
 		onRes: onDone,
 	}
+	if self == nil || self.provChan == nil {
+		errorChannelGone(click)
+		return
+	}
 	self.provChan <- click
 }
 
@@ -46,6 +59,10 @@ func (self *ProviderConnection) doDoubleclick(udid string, x int, y int, onDone 
 		y:     y,
 		onRes: onDone,
 	}
+	if self == nil || self.provChan == nil {
+		errorChannelGone(click)
+		return
+	}
 	self.provChan <- click
 }
 
@@ -54,6 +71,10 @@ func (self *ProviderConnection) doLaunch(udid string, bid string, onDone func(uj
 		udid:  udid,
 		bid:   bid,
 		onRes: onDone,
+	}
+	if self == nil || self.provChan == nil {
+		errorChannelGone(action)
+		return
 	}
 	self.provChan <- action
 }
@@ -64,6 +85,10 @@ func (self *ProviderConnection) doKill(udid string, bid string, onDone func(uj.J
 		bid:   bid,
 		onRes: onDone,
 	}
+	if self == nil || self.provChan == nil {
+		errorChannelGone(action)
+		return
+	}
 	self.provChan <- action
 }
 
@@ -72,6 +97,10 @@ func (self *ProviderConnection) doAllowApp(udid string, bid string, onDone func(
 		udid:  udid,
 		bid:   bid,
 		onRes: onDone,
+	}
+	if self == nil || self.provChan == nil {
+		errorChannelGone(action)
+		return
 	}
 	self.provChan <- action
 }
@@ -82,6 +111,10 @@ func (self *ProviderConnection) doRestrictApp(udid string, bid string, onDone fu
 		bid:   bid,
 		onRes: onDone,
 	}
+	if self == nil || self.provChan == nil {
+		errorChannelGone(action)
+		return
+	}
 	self.provChan <- action
 }
 
@@ -89,6 +122,10 @@ func (self *ProviderConnection) doListRestrictedApps(udid string, onDone func(uj
 	action := &ProvListRestrictedApps{
 		udid:  udid,
 		onRes: onDone,
+	}
+	if self == nil || self.provChan == nil {
+		errorChannelGone(action)
+		return
 	}
 	self.provChan <- action
 }
@@ -100,6 +137,10 @@ func (self *ProviderConnection) doMouseDown(udid string, x int, y int, onDone fu
 		y:     y,
 		onRes: onDone,
 	}
+	if self == nil || self.provChan == nil {
+		errorChannelGone(click)
+		return
+	}
 	self.provChan <- click
 }
 
@@ -110,6 +151,10 @@ func (self *ProviderConnection) doMouseUp(udid string, x int, y int, onDone func
 		y:     y,
 		onRes: onDone,
 	}
+	if self == nil || self.provChan == nil {
+		errorChannelGone(click)
+		return
+	}
 	self.provChan <- click
 }
 
@@ -119,6 +164,10 @@ func (self *ProviderConnection) doHardPress(udid string, x int, y int) {
 		x:    x,
 		y:    y,
 	}
+	if self == nil || self.provChan == nil {
+		errorChannelGone(click)
+		return
+	}
 	self.provChan <- click
 }
 
@@ -127,6 +176,10 @@ func (self *ProviderConnection) initWebrtc(udid string, offer string, onDone fun
 		udid:  udid,
 		offer: offer,
 		onRes: onDone,
+	}
+	if self == nil || self.provChan == nil {
+		errorChannelGone(action)
+		return
 	}
 	self.provChan <- action
 }
@@ -139,6 +192,10 @@ func (self *ProviderConnection) doLongPress(udid string, x int, y int, time floa
 		time:  time,
 		onRes: onDone,
 	}
+	if self == nil || self.provChan == nil {
+		errorChannelGone(click)
+		return
+	}
 	self.provChan <- click
 }
 
@@ -146,6 +203,10 @@ func (self *ProviderConnection) doTaskSwitcher(udid string, onDone func(uj.JNode
 	action := &ProvTaskSwitcher{
 		udid:  udid,
 		onRes: onDone,
+	}
+	if self == nil || self.provChan == nil {
+		errorChannelGone(action)
+		return
 	}
 	self.provChan <- action
 }
@@ -155,6 +216,10 @@ func (self *ProviderConnection) doShake(udid string, onDone func(uj.JNode, []byt
 		udid:  udid,
 		onRes: onDone,
 	}
+	if self == nil || self.provChan == nil {
+		errorChannelGone(action)
+		return
+	}
 	self.provChan <- action
 }
 
@@ -162,6 +227,10 @@ func (self *ProviderConnection) doCC(udid string, onDone func(uj.JNode, []byte))
 	action := &ProvCC{
 		udid:  udid,
 		onRes: onDone,
+	}
+	if self == nil || self.provChan == nil {
+		errorChannelGone(action)
+		return
 	}
 	self.provChan <- action
 }
@@ -171,6 +240,10 @@ func (self *ProviderConnection) doAssistiveTouch(udid string, onDone func(uj.JNo
 		udid:  udid,
 		onRes: onDone,
 	}
+	if self == nil || self.provChan == nil {
+		errorChannelGone(action)
+		return
+	}
 	self.provChan <- action
 }
 
@@ -178,6 +251,10 @@ func (self *ProviderConnection) doHome(udid string, onDone func(uj.JNode, []byte
 	home := &ProvHome{
 		udid:  udid,
 		onRes: onDone,
+	}
+	if self == nil || self.provChan == nil {
+		errorChannelGone(home)
+		return
 	}
 	self.provChan <- home
 }
@@ -187,6 +264,10 @@ func (self *ProviderConnection) doSource(udid string, onDone func(uj.JNode, []by
 		udid:  udid,
 		onRes: onDone,
 	}
+	if self == nil || self.provChan == nil {
+		errorChannelGone(source)
+		return
+	}
 	self.provChan <- source
 }
 
@@ -195,12 +276,20 @@ func (self *ProviderConnection) doWifiIp(udid string, onDone func(uj.JNode, []by
 		udid:  udid,
 		onRes: onDone,
 	}
+	if self == nil || self.provChan == nil {
+		errorChannelGone(action)
+		return
+	}
 	self.provChan <- action
 }
 
 func (self *ProviderConnection) doShutdown(onDone func(uj.JNode, []byte)) {
 	msg := &ProvShutdown{
 		onRes: onDone,
+	}
+	if self == nil || self.provChan == nil {
+		errorChannelGone(msg)
+		return
 	}
 	self.provChan <- msg
 }
@@ -213,6 +302,10 @@ func (self *ProviderConnection) doKeys(udid string, keys string, curid int, prev
 		prevkeys: prevkeys,
 		onRes:    onDone,
 	}
+	if self == nil || self.provChan == nil {
+		errorChannelGone(action)
+		return
+	}
 	self.provChan <- action
 }
 
@@ -221,6 +314,10 @@ func (self *ProviderConnection) doText(udid string, text string, onDone func(uj.
 		udid:  udid,
 		text:  text,
 		onRes: onDone,
+	}
+	if self == nil || self.provChan == nil {
+		errorChannelGone(action)
+		return
 	}
 	self.provChan <- action
 }
@@ -235,14 +332,26 @@ func (self *ProviderConnection) doSwipe(udid string, x1 int, y1 int, x2 int, y2 
 		delay: delay,
 		onRes: onDone,
 	}
+	if self == nil || self.provChan == nil {
+		errorChannelGone(swipe)
+		return
+	}
 	self.provChan <- swipe
 }
 
 func (self *ProviderConnection) startImgStream(udid string) {
+	if self == nil || self.provChan == nil {
+		errorChannelGone(&ProvStartStream{udid: udid})
+		return
+	}
 	self.provChan <- &ProvStartStream{udid: udid}
 }
 
 func (self *ProviderConnection) stopImgStream(udid string) {
+	if self == nil || self.provChan == nil {
+		errorChannelGone(&ProvStopStream{udid: udid})
+		return
+	}
 	self.provChan <- &ProvStopStream{udid: udid}
 }
 
