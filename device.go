@@ -1479,7 +1479,7 @@ func (self *DevHandler) handleImgStream( c *gin.Context ) {
         "type": "imgstream_start",
         "udid": censorUuid( udid ),
         "rid": rid,
-    } ).Info("Image stream connected")
+    } ).Info("Client <- Server video connected")
     
     writer := c.Writer
     req := c.Request
@@ -1496,10 +1496,8 @@ func (self *DevHandler) handleImgStream( c *gin.Context ) {
     
     _, data, _ := conn.ReadMessage()
     clientOffset := parseTimeResult( data )
-    
-    done := false
-    
-    fmt.Printf("sending startStream to provider\n")
+  
+    //fmt.Printf("sending startStream to provider\n")
     provId := self.devTracker.getDevProvId( udid )
     if provId == 0 {
         fmt.Println("Device not yet provided")
@@ -1511,26 +1509,41 @@ func (self *DevHandler) handleImgStream( c *gin.Context ) {
         return
     }
     
+    done := false
+    imgDone := func() {
+        if done { return }
+        log.WithFields( log.Fields{
+            "type": "imgstream_stop",
+            "udid": censorUuid( udid ),
+            "rid": rid,
+        } ).Info("Client <- Server video disconnected")
+        
+        if rok {
+            deleteReservationWithRid( udid, rid )
+        }
+        provConn.stopImgStream( udid )
+    }
+    
+    go func() {
+        for {
+            _, _, err := conn.ReadMessage()
+            if err != nil {
+                break
+            }
+        }
+        imgDone()
+    }()
+    
+    fmt.Printf("A - rid:%s\n", rid )
+    
     self.devTracker.setVidStreamOutput( udid, &VidConn{
         socket: conn,
         offset: clientOffset,
         rid: rid,
-        onDone: func() {
-            if done { return }
-            done = true
-            
-            log.WithFields( log.Fields{
-                "type": "imgstream_start",
-                "udid": censorUuid( udid ),
-                "rid": rid,
-            } ).Info("Image stream disconnected")
-            
-            if rok {
-                deleteReservationWithRid( udid, rid )
-            }
-            provConn.stopImgStream( udid )
-        },
+        onDone: imgDone,
     } )
+    
+    fmt.Printf("B - rid:%s\n", rid )
     
     provConn.startImgStream( udid )
 }
@@ -1562,7 +1575,7 @@ func (self *DevHandler) handleDevWs( c *gin.Context ) {
     log.WithFields( log.Fields{
         "type": "devws_start",
         "udid": censorUuid( udid ),
-    } ).Info("Device ws connected")
+    } ).Info("Server <-> Client WS Connected")
     
     writer := c.Writer
     req := c.Request
@@ -1572,10 +1585,25 @@ func (self *DevHandler) handleDevWs( c *gin.Context ) {
         return
     }
     
+    //abort := false
+    
+    /*go func() {
+        for {
+            if abort { return }
+            err := conn.WriteMessage("ping")
+            if err != nil {
+                abort = true
+                break
+            }
+            time.Sleep( time.Second )
+        }
+    }()*/
+    
     for {
+        //if abort { break }
         t, msg, err := conn.ReadMessage()
         if err != nil {
-            fmt.Printf("Error reading from ws\n")
+            //abort = true
             break
         }
         if t == ws.TextMessage {
@@ -1599,4 +1627,9 @@ func (self *DevHandler) handleDevWs( c *gin.Context ) {
             }
         }
     }
+    
+    log.WithFields( log.Fields{
+        "type": "devws_stop",
+        "udid": censorUuid( udid ),
+    } ).Info("Server <-> Client WS Disconnected")
 }

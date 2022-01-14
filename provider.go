@@ -11,6 +11,7 @@ import (
     ws "github.com/gorilla/websocket"
     uj "github.com/nanoscopic/ujsonin/v2/mod"
     "github.com/gin-gonic/gin"
+    log "github.com/sirupsen/logrus"
 )
 
 type ProviderOb struct {
@@ -113,7 +114,10 @@ func (self *ProviderHandler) handleImgProvider( c *gin.Context ) {
         } )
         return
     }
-    fmt.Printf("connection to provider/imgStream udid=%s\n", udid )
+    log.WithFields( log.Fields{
+        "type": "provider_video_start",
+        "udid": censorUuid( udid ),
+    } ).Info("Provider -> Server video connected")
     
     //dev := getDevice( udid )
     
@@ -135,17 +139,6 @@ func (self *ProviderHandler) handleImgProvider( c *gin.Context ) {
     msgChan := make( chan ClientMsg )
     self.devTracker.addClient( udid, msgChan )
     
-    /*if outSocket != nil {
-        go func() {
-            for {
-                if _, _, err := outSocket.NextReader(); err != nil {
-                    outSocket.Close()
-                    break
-                }
-            }
-        }()
-    }*/
-    
     frameChan := make( chan FrameMsg, 20 )
     
     // Consume incoming frames as fast as possible only ever holding onto the latest frame
@@ -157,18 +150,22 @@ func (self *ProviderHandler) handleImgProvider( c *gin.Context ) {
             //fmt.Printf("Got frame\n")
             if err != nil {
                 conn = nil
-                frameChan <- FrameMsg{
-                    msg: CMKick,
-                    frame: []byte{},
-                    frameType: 0,
+                if frameChan != nil {
+                    frameChan <- FrameMsg{
+                        msg: CMKick,
+                        frame: []byte{},
+                        frameType: 0,
+                    }
                 }
                 fmt.Printf("Frame receive error: %s\n", err )
                 break
             }
-            frameChan <- FrameMsg{
-                msg: CMFrame,
-                frame: data,
-                frameType: t,
+            if frameChan != nil {
+                frameChan <- FrameMsg{
+                    msg: CMFrame,
+                    frame: data,
+                    frameType: t,
+                }
             }
             
             select {
@@ -176,10 +173,12 @@ func (self *ProviderHandler) handleImgProvider( c *gin.Context ) {
                     outSocket.WriteMessage( ws.TextMessage, []byte(msg.msg) )
                     if msg.msgType == CMKick {
                         fmt.Printf("Got kick from client; ending ingest\n")
-                        frameChan <- FrameMsg{
-                            msg: CMKick,
-                            frame: []byte{},
-                            frameType: 0,
+                        if frameChan != nil {
+                            frameChan <- FrameMsg{
+                                msg: CMKick,
+                                frame: []byte{},
+                                frameType: 0,
+                            }
                         }
                         ingestDone = true
                         break
@@ -221,17 +220,24 @@ func (self *ProviderHandler) handleImgProvider( c *gin.Context ) {
     go func() {
         for {
             if abort { return }
-            frameChan <- FrameMsg{
-                msg: CMPing,
-                frame: []byte{},
-                frameType: 0,
-            }
+            if frameChan != nil {
+                frameChan <- FrameMsg{
+                    msg: CMPing,
+                    frame: []byte{},
+                    frameType: 0,
+                }
+            } else { break }
             time.Sleep( time.Second )
         }
     }()
     
     // Whenever a frame is ready send the latest frame
     for {
+        if abort { 
+            fmt.Printf("Frame sender got CMKick. Aborting\n")
+            break
+        }
+        
         var frame FrameMsg
         gotFrame := false
         emptied := false
@@ -239,6 +245,7 @@ func (self *ProviderHandler) handleImgProvider( c *gin.Context ) {
             select {
                 case msg := <- frameChan:
                     if msg.msg == CMKick {
+                        frameChan = nil
                         abort = true 
                     } else if msg.msg == CMPing {
                         awriter, err := outSocket.NextWriter( ws.TextMessage )
@@ -342,6 +349,11 @@ func (self *ProviderHandler) handleImgProvider( c *gin.Context ) {
         
         time.Sleep( time.Millisecond * time.Duration( milliToSleep ) )
     }
+    
+    log.WithFields( log.Fields{
+        "type": "provider_video_end",
+        "udid": censorUuid( udid ),
+    } ).Info("Provider -> Server video disconnected")
     
     self.devTracker.delVidStreamOutput( udid, vidConn.rid )
     self.devTracker.deleteClient( udid )

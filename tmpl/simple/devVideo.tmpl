@@ -351,6 +351,7 @@
     var under     = getel("under");
     var vidbox    = getel("vidbox");
     var ws;
+    var cmdWs;
     var loading   = getel("loading");
     var notesbox  = getel("notes");
     var shutdown  = getel("shutdown");
@@ -597,6 +598,18 @@
     }
     
     var wsprot = ( document.location.protocol == 'https:' ) ? "wss" : "ws"; 
+    
+    var cmdUrl = wsprot+"://"+document.location.host+"/device/ws?udid={{ html .udid }}&rid={{ html .rid }}";
+    cmdWs = new WebSocket( cmdUrl );
+    cmdWs.onmessage = function( event ) {
+        var data = event.data;
+        if( typeof data === 'string' ) {
+            if( data == "ping" ) {
+                console.log("ping");
+            }
+        }
+    }
+    
     var url = wsprot+"://"+document.location.host+"/device/imgStream?udid={{ html .udid }}&rid={{ html .rid }}";
     ws = new WebSocket( url );
     ws.onopen = function( event ) {
