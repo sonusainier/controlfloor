@@ -263,23 +263,7 @@
   var prevKeys = [];
   var inRequest = 0;
   var pos1;
-  /*
-  sendKeys has been hacked up a bunch since it was originally written.
-  Right now it is sending a single key at a time and waiting for that
-  call to complete before sending another key.
   
-  This is done to prevent concurrency from causing keys to be entered
-  out of typing order.
-  
-  There is additional information being sent that is not needed currently
-  that could be used to be extremely sure keys are never sent out of order.
-  
-  This function can still be improved some more, as if keys are backed up
-  and waiting to be sent we could send more than a single key at once.
-  
-  The backend doesn't handle doing that as well as desired so that is
-  avoided currently.
-  */
   function sendKeys() {
     if( !keyqueue.length || inRequest ) return;
     //var keys = keyqueue.join("");
@@ -351,7 +335,6 @@
     var under     = getel("under");
     var vidbox    = getel("vidbox");
     var ws;
-    var cmdWs;
     var loading   = getel("loading");
     var notesbox  = getel("notes");
     var shutdown  = getel("shutdown");
@@ -597,30 +580,23 @@
       return false;
     }
     
-    var wsprot = ( document.location.protocol == 'https:' ) ? "wss" : "ws"; 
+    var pc = new RTCPeerConnection( { iceServers: [ { urls: 'stun:dryark.com:3478' } ] } );
+    //var pc = new RTCPeerConnection( { iceServers: [ { urls: 'stun:stun.l.google.com:19302' } ] } );
+    var log = msg => {
+      //document.getElementById('logs').innerHTML += msg + '<br>'
+      console.log( msg );
+    };
     
-    var cmdUrl = wsprot+"://"+document.location.host+"/device/ws?udid={{ html .udid }}&rid={{ html .rid }}";
-    cmdWs = new WebSocket( cmdUrl );
-    cmdWs.onmessage = function( event ) {
-        var data = event.data;
-        if( typeof data === 'string' ) {
-            if( data == "ping" ) {
-                console.log("ping");
-            }
-        }
-    }
+    var rtcChan = pc.createDataChannel('foo');
+    //rtcChan.binaryType = "blob";
+    rtcChan.binaryType = "arraybuffer";
     
-    var url = wsprot+"://"+document.location.host+"/device/imgStream?udid={{ html .udid }}&rid={{ html .rid }}";
-    ws = new WebSocket( url );
-    ws.onopen = function( event ) {
-        console.log("Websocket open");
-    }
-    ws.onclose = function( event ) {
-        console.log("Websocket closed");
-        ws = null;
-    }
-    ws.onmessage = function( event ) {
-        if( event.data instanceof Blob ) {
+    var imgCache = {};
+    rtcChan.onclose = () => console.log('sendChannel has closed')
+    rtcChan.onopen = () => console.log('sendChannel has opened')
+    rtcChan.onmessage = function( event ) {
+      //log(`Message from DataChannel '${sendChannel.label}' payload '${e.data}'`);
+      if( event.data instanceof ArrayBuffer ) {
           var recvTime = new Date().getTime();
           var image = new Image();
           var url;
@@ -632,8 +608,64 @@
             console.log('Error during loading image:', e);
           }
           var blob = event.data;
-          var imgData = blob.slice( 0, -100, "image/jpeg" );
-          blob.slice( -100, blob.size, "" ).text().then( serverTimeStr => {
+          //var imgData = blob.slice( 0, -100, "image/jpeg" );
+          //blob.slice( -60, blob.size, "" ).text().then( info => {
+          //blob.arrayBuffer().then( fullBuffer => {
+              var fullBuffer = blob;
+              var infoBuffer = fullBuffer.slice( fullBuffer.byteLength-60, fullBuffer.byteLength );
+              var dec = new TextDecoder("utf-8");
+              var info = JSON.parse( dec.decode( infoBuffer ) );
+              //console.log( info );
+              //var info = JSON.parse( info );
+              //console.log( info );
+              var a = info[0];
+              var b = info[1];
+              var id = info[2];
+              var partSize = info[3];
+              if( imgCache[id] ) {
+                  var data = imgCache[id];
+                  //blob.slice( 0, -60 ).arrayBuffer().then( buffer => {
+                      var buffer = fullBuffer.slice( 0, partSize );
+                      data.parts[a-1] = buffer;
+                      data.totLen += buffer.byteLength;
+                      data.cur++;
+                      if( data.cur == data.total ) {
+                          // assemble the buffers
+                          var bufs = data.parts;
+                          //var blob2 = new Blob( bufs );
+                          //console.log( trueSize + " - " + data.totLen );
+                          
+                          /*var tmp = new Uint8Array( data.totLen );
+                          var pos = 0;
+                          for( var i=0;i<bufs.length;i++ ) {
+                              tmp.set( new Uint8Array(bufs[i]), pos );
+                              pos += bufs[i].byteLength;
+                          }
+                          url = URL.createObjectURL( new Blob( [tmp.buffer], { type: "image/jpeg" } ) );*/
+                          
+                          url = URL.createObjectURL( new Blob( bufs, { type: "image/jpeg" } ) );
+                          
+                          image.src = url;
+                          delete imgCache[id];
+                      }
+                  //} );
+              } else {
+                  var data = {
+                      cur: 0,
+                      total: b,
+                      totLen: 0,
+                      parts: []
+                  };
+                  imgCache[id] = data;
+                  //blob.slice( 0, -60 ).arrayBuffer().then( buffer => {
+                      var buffer = fullBuffer.slice( 0, partSize );
+                      data.parts[a-1] = buffer;
+                      data.totLen += buffer.byteLength;
+                      data.cur++;
+                  //} );
+              }
+          //} );
+          /*blob.slice( -100, blob.size, "" ).text().then( serverTimeStr => {
               //console.log( "serverTimeStr " + serverTimeStr );
               var serverTime = parseInt( serverTimeStr );
               var diff = recvTime - serverTime;
@@ -662,11 +694,48 @@
                   var avgFrame = Math.floor( totSize / 5 );
                   ws.send( "{\"bps\":\"" + bps + "\",\"avgFrame\":\"" + avgFrame + "\"}" );
               }
-          } );
+          } );*/
           
-          url = URL.createObjectURL( blob );
-          image.src = url;
-        }
+          //url = URL.createObjectURL( blob );
+          //image.src = url;
+      }
+    }
+    
+    var offerA = '';
+    var ready = 0;
+    
+    pc.oniceconnectionstatechange = e => log(pc.iceConnectionState)
+    pc.onicecandidate = event => {
+      if (event.candidate === null) {
+        //console.log("ld "+JSON.stringify(pc.localDescription));
+        //console.log("offserA "+JSON.stringify(offerA));
+        //var offer = btoa( JSON.stringify(offerA) );
+        //document.getElementById('localSessionDescription').value = 
+        var offer = btoa( JSON.stringify(pc.localDescription) );
+        req( 'POST', base + '/device/initWebrtc', function(x,r) {
+            var answer = r.response.answer;
+            
+            try {
+                var remotejson = atob(answer);
+                console.log( "remotejson: " + remotejson );
+                pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(remotejson)))
+            } catch (e) {
+                alert(e)
+            }
+        }, { udid, offer } );  
+      }
+    };
+    
+    pc.onnegotiationneeded = function( e  ) {
+      pc.createOffer()
+      .then( function(offer) {
+        pc.setLocalDescription(offer);
+      } )
+      .catch(log);
+    }
+    
+    /*ws.onmessage = function( event ) {
+        
         else {
             var data = event.data;
             if( typeof data === 'string' ) {
@@ -718,8 +787,8 @@
     }
     ws.onerror = function( event ) {
         console.log( "Error: ", event.data );
-    }
-    if( idleTimeout ) {
+    }*/
+    /*if( idleTimeout ) {
       setInterval( function() {
         idleSeconds += 3;
         if( idleSeconds > idleTimeout ) {
@@ -732,7 +801,7 @@
       window.onmousemove = function() {
         idleSeconds = 0;
       }
-    }
+    }*/
   });
 </script>
 </head>

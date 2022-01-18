@@ -5,17 +5,20 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	mrand "math/rand"
 	"net/http"
 	"strconv"
-	"strings"
-	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	ws "github.com/gorilla/websocket"
 	uj "github.com/nanoscopic/ujsonin/v2/mod"
+	log "github.com/sirupsen/logrus"
 )
+
+type ProviderOb struct {
+	User string
+	Id   int64
+}
 
 type ProviderHandler struct {
 	r              *gin.Engine
@@ -61,7 +64,8 @@ func (self *ProviderHandler) NeedProviderAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		sCtx := self.sessionManager.GetSession(c)
 
-		provider, ok := self.sessionManager.session.Get(sCtx, "provider").(ProviderOb)
+		_, ok := self.sessionManager.session.Get(sCtx, "provider").(ProviderOb)
+		// provider not used
 
 		if !ok {
 			c.Redirect(302, "/provider/login")
@@ -69,7 +73,7 @@ func (self *ProviderHandler) NeedProviderAuth() gin.HandlerFunc {
 			fmt.Println("provider fail")
 			return
 		} else {
-			fmt.Printf("provider user=%s\n", provider.User)
+			//fmt.Printf("provider user=%s\n", provider.User )
 		}
 
 		c.Next()
@@ -79,91 +83,6 @@ func (self *ProviderHandler) NeedProviderAuth() gin.HandlerFunc {
 var wsupgrader = ws.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
-}
-
-type ReqTracker struct {
-	reqMap map[int16]ProvBase
-	lock   *sync.Mutex
-	conn   *ws.Conn
-}
-
-func NewReqTracker() *ReqTracker {
-	self := &ReqTracker{
-		reqMap: make(map[int16]ProvBase),
-		lock:   &sync.Mutex{},
-	}
-
-	return self
-}
-
-func (self *ReqTracker) sendReq(req ProvBase) error {
-	var reqText string
-	if req.needsResponse() {
-		var id int16
-		maxi := ^uint16(0) / 2
-		for {
-			id = int16(mrand.Int31n(int32(maxi-2))) + 1
-			_, exists := self.reqMap[id]
-			if !exists {
-				break
-			}
-		}
-
-		self.lock.Lock()
-		self.reqMap[id] = req
-		self.lock.Unlock()
-		reqText = req.asText(id)
-	} else {
-		reqText = req.asText(0)
-	}
-
-	if !strings.Contains(reqText, "ping") {
-		fmt.Printf("sending %s\n", reqText)
-	}
-	// send the request
-	err := self.conn.WriteMessage(ws.TextMessage, []byte(reqText))
-	return err
-}
-
-func (self *ReqTracker) processResp(msgType int, reqText []byte) {
-	if !strings.Contains(string(reqText), "pong") {
-		fmt.Printf("received %s\n", string(reqText))
-	}
-
-	if len(reqText) == 0 {
-		return
-	}
-	c1 := string([]byte{reqText[0]})
-	if c1 != "{" {
-		return
-	}
-	last1 := string([]byte{reqText[len(reqText)-1]})
-	last2 := string([]byte{reqText[len(reqText)-2]})
-	if last1 != "}" && last2 != "}" {
-		fmt.Printf("response not json; last1=%s\n", last1)
-		return
-	}
-
-	root, _, err := uj.ParseFull(reqText)
-	if err != nil {
-		fmt.Printf("Could not parse response as json\n")
-		return
-	}
-
-	id := root.Get("id").Int()
-
-	req := self.reqMap[int16(id)]
-	resHandler := req.resHandler()
-	if resHandler != nil {
-		resHandler(root, reqText)
-	}
-
-	self.lock.Lock()
-	delete(self.reqMap, int16(id))
-	self.lock.Unlock()
-	// deserialize the reqText to get the id
-	// fetch the original request from the reqMap
-	// respond to the original request if needed
 }
 
 const (
@@ -197,7 +116,10 @@ func (self *ProviderHandler) handleImgProvider(c *gin.Context) {
 		})
 		return
 	}
-	fmt.Printf("connection to provider/imgStream udid=%s\n", udid)
+	log.WithFields(log.Fields{
+		"type": "provider_video_start",
+		"udid": censorUuid(udid),
+	}).Info("Provider -> Server video connected")
 
 	//dev := getDevice( udid )
 
@@ -219,17 +141,6 @@ func (self *ProviderHandler) handleImgProvider(c *gin.Context) {
 	msgChan := make(chan ClientMsg)
 	self.devTracker.addClient(udid, msgChan)
 
-	/*if outSocket != nil {
-	    go func() {
-	        for {
-	            if _, _, err := outSocket.NextReader(); err != nil {
-	                outSocket.Close()
-	                break
-	            }
-	        }
-	    }()
-	}*/
-
 	frameChan := make(chan FrameMsg, 20)
 
 	// Consume incoming frames as fast as possible only ever holding onto the latest frame
@@ -243,18 +154,22 @@ func (self *ProviderHandler) handleImgProvider(c *gin.Context) {
 			//fmt.Printf("Got frame\n")
 			if err != nil {
 				conn = nil
-				frameChan <- FrameMsg{
-					msg:       CMKick,
-					frame:     []byte{},
-					frameType: 0,
+				if frameChan != nil {
+					frameChan <- FrameMsg{
+						msg:       CMKick,
+						frame:     []byte{},
+						frameType: 0,
+					}
 				}
 				fmt.Printf("Frame receive error: %s\n", err)
 				break
 			}
-			frameChan <- FrameMsg{
-				msg:       CMFrame,
-				frame:     data,
-				frameType: t,
+			if frameChan != nil {
+				frameChan <- FrameMsg{
+					msg:       CMFrame,
+					frame:     data,
+					frameType: t,
+				}
 			}
 
 			select {
@@ -262,10 +177,12 @@ func (self *ProviderHandler) handleImgProvider(c *gin.Context) {
 				outSocket.WriteMessage(ws.TextMessage, []byte(msg.msg))
 				if msg.msgType == CMKick {
 					fmt.Printf("Got kick from client; ending ingest\n")
-					frameChan <- FrameMsg{
-						msg:       CMKick,
-						frame:     []byte{},
-						frameType: 0,
+					if frameChan != nil {
+						frameChan <- FrameMsg{
+							msg:       CMKick,
+							frame:     []byte{},
+							frameType: 0,
+						}
 					}
 					ingestDone = true
 					break
@@ -309,10 +226,14 @@ func (self *ProviderHandler) handleImgProvider(c *gin.Context) {
 			if abort {
 				return
 			}
-			frameChan <- FrameMsg{
-				msg:       CMPing,
-				frame:     []byte{},
-				frameType: 0,
+			if frameChan != nil {
+				frameChan <- FrameMsg{
+					msg:       CMPing,
+					frame:     []byte{},
+					frameType: 0,
+				}
+			} else {
+				break
 			}
 			time.Sleep(time.Second)
 		}
@@ -320,6 +241,11 @@ func (self *ProviderHandler) handleImgProvider(c *gin.Context) {
 
 	// Whenever a frame is ready send the latest frame
 	for {
+		if abort {
+			fmt.Printf("Frame sender got CMKick. Aborting\n")
+			break
+		}
+
 		var frame FrameMsg
 		gotFrame := false
 		emptied := false
@@ -327,6 +253,7 @@ func (self *ProviderHandler) handleImgProvider(c *gin.Context) {
 			select {
 			case msg := <-frameChan:
 				if msg.msg == CMKick {
+					frameChan = nil
 					abort = true
 				} else if msg.msg == CMPing {
 					awriter, err := outSocket.NextWriter(ws.TextMessage)
@@ -437,6 +364,11 @@ func (self *ProviderHandler) handleImgProvider(c *gin.Context) {
 		time.Sleep(time.Millisecond * time.Duration(milliToSleep))
 	}
 
+	log.WithFields(log.Fields{
+		"type": "provider_video_end",
+		"udid": censorUuid(udid),
+	}).Info("Provider -> Server video disconnected")
+
 	self.devTracker.delVidStreamOutput(udid, vidConn.rid)
 	self.devTracker.deleteClient(udid)
 
@@ -471,7 +403,7 @@ func (self *ProviderHandler) handleProviderWS(c *gin.Context) {
 
 	amDone := false
 
-	fmt.Printf("got ws connection\n")
+	fmt.Printf("Provider Connection Established - Provider:%s\n", provider.User)
 
 	go func() {
 		for {
@@ -484,6 +416,9 @@ func (self *ProviderHandler) handleProviderWS(c *gin.Context) {
 			})
 
 			if amDone {
+				if provChan != nil {
+					provChan <- nil
+				}
 				break
 			}
 		}
@@ -495,10 +430,17 @@ func (self *ProviderHandler) handleProviderWS(c *gin.Context) {
 			if err != nil {
 				amDone = true
 			} else {
-				reqTracker.processResp(t, msg)
+				jsonroot := reqTracker.processResp(t, msg)
+				if jsonroot != nil {
+					// This is not a response; is a request from provider
+
+				}
 			}
 
 			if amDone {
+				if provChan != nil {
+					provChan <- nil
+				}
 				break
 			}
 		}
@@ -506,15 +448,24 @@ func (self *ProviderHandler) handleProviderWS(c *gin.Context) {
 
 	for {
 		ev := <-provChan
-		err := reqTracker.sendReq(ev)
+		if ev == nil {
+			provChan = nil
+			break
+		}
+
+		err, reqText := reqTracker.sendReq(ev)
 		if err != nil {
+			fmt.Printf("Failed to send request to provider\n")
+			fmt.Printf("  Request data:%s\n", reqText)
+			fmt.Printf("  Error:%s\n", err)
+			provConn.provChan = nil
 			amDone = true
 			break
 		}
 	}
 
 	self.devTracker.clearProvConn(provider.Id)
-	fmt.Printf("lost ws connection\n")
+	fmt.Printf("Provider Connection Lost - Provider:%s\n", provider.User)
 }
 
 func randHex() string {
@@ -568,11 +519,6 @@ func (self *ProviderHandler) handleRegister(c *gin.Context) {
 	c.JSON(http.StatusOK, json)
 }
 
-type ProviderOb struct {
-	User string
-	Id   int64
-}
-
 // @Description Provider - Login
 // @Router /provider/login [POST]
 // @Param user query string true "Username"
@@ -593,7 +539,7 @@ func (self *ProviderHandler) handleProviderLogin(c *gin.Context) {
 	}
 
 	if pass == provider.Password {
-		fmt.Printf("provider login ok\n")
+		//fmt.Printf("provider login ok\n")
 
 		self.sessionManager.session.Put(s, "provider", &ProviderOb{
 			User: user,
