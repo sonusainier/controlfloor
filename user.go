@@ -43,6 +43,7 @@ func (self *UserHandler) registerUserRoutes() (*gin.RouterGroup) {
     uAuth := r.Group("/")
     uAuth.Use( self.NeedUserAuth( self.authHandler ) )
     uAuth.GET("/", self.showUserRoot )
+    uAuth.GET("/device/list", self.showDeviceList )
     return uAuth
 }
 
@@ -68,6 +69,27 @@ func (self *UserHandler) NeedUserAuth( authHandler cfauth.AuthHandler ) gin.Hand
         
         c.Next()
     }
+}
+
+type SDevice struct {
+    Udid        string `json:"udid"   example:"00008100-001338811EE10033"`
+    Name        string `json:"name"   example:"My Device"`
+}
+
+// @Summary Device list
+// @Router /device/list [GET]
+func (self *UserHandler) showDeviceList( c *gin.Context ) {
+    //devices, err := getDevices()
+    //if err != nil { panic( err ) }
+    
+    devsOut := []SDevice{}
+    
+    devsOut = append( devsOut, SDevice{
+        Udid: "udid",
+        Name: "my dev",
+    } )
+    
+    c.JSON( http.StatusOK, devsOut )
 }
 
 // @Summary Home - Device list
