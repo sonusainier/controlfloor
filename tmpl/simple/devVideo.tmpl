@@ -133,9 +133,14 @@
   var udid="{{ html .udid }}";
   var clickWid={{ html .clickWidth }}*1;
   var clickHeg={{ html .clickHeight }}*1;
+  var originalClickWid={{ html .clickWidth }}*1;
+  var originalClickHeg={{ html .clickHeight }}*1;
   var vidWid={{ html .vidWidth }}*1;
   var vidHeg={{ html .vidHeight }}*1;
   var maxHeg={{ html .maxHeight }}*1;
+  var orientation={{ html .orientation }};
+  var originalDisplayWid=0;
+  var originalDisplayHeg=0;
   var displayWid=0;
   var displayHeg=0;
   var base = document.location.protocol + '//' + document.location.host;
@@ -157,6 +162,9 @@
     displayHeg = maxHeg;
     displayWid = maxHeg * wOverH;
   }
+  originalDisplayWid = displayWid;
+  originalDisplayHeg = displayHeg;
+  
   function req( type, url, handler, body ) {
     var xhr = new XMLHttpRequest();
     xhr.open( type, url, true );
@@ -312,6 +320,39 @@
     } );
   }
   
+  function setOrientation( o ) {
+      var newWid = originalDisplayWid;
+      var newHeg = originalDisplayHeg;
+      var newClickWid = originalClickWid;
+      var newClickHeg = originalClickHeg;
+      switch( o ) {
+          case "landscapeLeft":
+              newWid = originalDisplayHeg;
+              newHeg = originalDisplayWid;
+              newClickWid = originalClickHeg;
+              newClickHeg = originalDisplayWid;
+              break;
+          case "landscapeRight":
+              newWid = originalDisplayHeg;
+              newHeg = originalDisplayWid;
+              newClickWid = originalClickHeg;
+              newClickHeg = originalDisplayWid;
+              break;
+      }
+      
+      displayWid = newWid;
+      displayHeg = newHeg;
+      clickWid = newClickWid;
+      clickHeg = newClickHeg;
+      canvas.width      = newWid;
+      canvas.height     = newHeg;
+      ta.style.width = newWid + "px";
+      ta.style.height = newHeg + "px";
+      getel("mid").style.width = newWid + "px";
+      under.style.top = newHeg + "px";
+      under.style.width = newWid + "px";
+  }
+  
   var mode = 'normal';
   var capture  = {}; // onkeydown
   var capture2 = {}; // onkeypress
@@ -352,6 +393,7 @@
     var vidbox    = getel("vidbox");
     var ws;
     var cmdWs;
+    var recvWs;
     var loading   = getel("loading");
     var notesbox  = getel("notes");
     var shutdown  = getel("shutdown");
@@ -404,6 +446,7 @@
     
     var idleSeconds = 0;
     
+    /*
     //vidbox.style.width  = ( displayWid + 100 ) + "px";
     canvas.width      = displayWid;
     canvas.height     = displayHeg;
@@ -414,6 +457,8 @@
     under.style.width = displayWid + "px";
     //loading.style.left = ( displayWid / 2 -50 ) + "px";
     //loading.style.top = ( displayHeg / 2 - 50 ) + "px";
+    */
+    setOrientation( orientation );
     
     home.onclick = function( event ) {
       wait();
@@ -604,8 +649,39 @@
     cmdWs.onmessage = function( event ) {
         var data = event.data;
         if( typeof data === 'string' ) {
-            if( data == "ping" ) {
-                console.log("ping");
+            var l1 = data[0];
+            if( l1 == '{' ) {
+                var json = JSON.parse( data );
+                var type = json.type;
+                if( type == "orientation" ) {
+                    console.log( data );
+                }
+            } else {
+                if( data == "ping" ) {
+                    console.log("ping");
+                }
+            }
+        }
+    }
+    
+    var recvUrl = wsprot+"://"+document.location.host+"/device/notices?udid={{ html .udid }}&rid={{ html .rid }}";
+    recvWs = new WebSocket( recvUrl );
+    recvWs.onmessage = function( event ) {
+        var data = event.data;
+        if( typeof data === 'string' ) {
+            var l1 = data[0];
+            if( l1 == '{' ) {
+                var json = JSON.parse( data );
+                var type = json.type;
+                if( type == "orientation" ) {
+                    console.log( data );
+                    var o = json.orientation;
+                    setOrientation( o );
+                }
+            } else {
+                if( data == "ping" ) {
+                    console.log("ping");
+                }
             }
         }
     }
