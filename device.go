@@ -47,9 +47,8 @@ func (self *DevHandler) registerDeviceRoutes() {
 	aAuth := self.adminAuthGroup
 
 	fmt.Println("Registering device routes")
-	pAuth.POST("/device/status/:variant", func(c *gin.Context) {
-		self.handleDevStatus(c)
-	})
+	pAuth.POST("/device/status/:variant", func(c *gin.Context) { self.handleDevStatus(c) })
+	pAuth.POST("/device/orientation", func(c *gin.Context) { self.handleDevOrientation(c) })
 	// - Device is present on provider
 	// - Device Info fetched from device
 	// - WDA start/stop
@@ -83,6 +82,7 @@ func (self *DevHandler) registerDeviceRoutes() {
 	uAuth.GET("/device/imgStream", func(c *gin.Context) { self.handleImgStream(c) })
 	uAuth.POST("/device/initWebrtc", func(c *gin.Context) { self.handleWebrtc(c) })
 	uAuth.GET("/device/ws", func(c *gin.Context) { self.handleDevWs(c) })
+	uAuth.GET("/device/notices", func(c *gin.Context) { self.handleDevNotices(c) })
 
 	uAuth.POST("/device/launch", func(c *gin.Context) { self.handleDevLaunch(c) })
 	uAuth.POST("/device/kill", func(c *gin.Context) { self.handleDevKill(c) })
@@ -1201,6 +1201,7 @@ func (self *DevHandler) showDevVideo(c *gin.Context) {
 		"info":        info,
 		"rawInfo":     rawInfo,
 		"notes":       notesText,
+		"orientation": self.devTracker.getDevInfo(udid).orientation,
 	})
 }
 
@@ -1348,10 +1349,49 @@ func dummy6() {}
 // @Param udid query string true "Device UDID"
 func dummy7() {}
 
+type OrientationResult struct {
+	Type        string `json:"type"`
+	Orientation string `json:"orientation"`
+}
+
+func (self *OrientationResult) asBytes() []byte {
+	text, _ := json.Marshal(self)
+	return text
+}
+
+// @Summary Device Orientation
+// @Router /provider/device/orientation [POST]
+// @Param udid query string true "Device UDID"
+func (self *DevHandler) handleDevOrientation(c *gin.Context) {
+	udid := c.PostForm("udid")
+	orientation := c.PostForm("orientation")
+
+	// Notice Connection to Frontend
+	conn := self.devTracker.getNoticeOutput(udid)
+	devInfo := self.devTracker.getDevInfo(udid)
+	devInfo.orientation = orientation
+
+	if conn == nil {
+		return
+	}
+
+	msg := OrientationResult{
+		Type:        "orientation",
+		Orientation: orientation,
+	}
+	err := conn.socket.WriteMessage(ws.TextMessage, msg.asBytes())
+	if err != nil {
+		//TODO disaster
+	}
+
+	c.HTML(http.StatusOK, "error", gin.H{
+		"text": "ok",
+	})
+}
+
 // @Summary Device Status - Provision Stopped
 // @Router /provider/device/status/provisionStopped [POST]
 // @Param udid query string true "Device UDID"
-
 func (self *DevHandler) handleDevStatus(c *gin.Context) {
 	s := self.sessionManager.GetSession(c)
 
@@ -1666,4 +1706,52 @@ func (self *DevHandler) handleDevWs(c *gin.Context) {
 		"type": "devws_stop",
 		"udid": censorUuid(udid),
 	}).Info("Server <-> Client WS Disconnected")
+}
+
+// @Description Device - Device Notices Websocket
+// @Router /device/notices [GET]
+// @Param udid query string true "Device UDID"
+func (self *DevHandler) handleDevNotices(c *gin.Context) {
+	udid, uok := c.GetQuery("udid")
+	if !uok {
+		c.HTML(http.StatusOK, "error", gin.H{
+			"text": "no uuid set",
+		})
+		return
+	}
+
+	log.WithFields(log.Fields{
+		"type": "devnotices_start",
+		"udid": censorUuid(udid),
+	}).Info("Server <-> Client Notices Connected")
+
+	writer := c.Writer
+	req := c.Request
+	conn, err := wsupgrader.Upgrade(writer, req, nil)
+	if err != nil {
+		fmt.Println("Failed to set websocket upgrade: %+v", err)
+		return
+	}
+
+	//abort := false
+	self.devTracker.setNoticeOutput(udid, &NoticeConn{
+		socket: conn,
+	})
+
+	for {
+		//if abort { return }
+		_, _, err := conn.ReadMessage()
+		if err != nil {
+			//abort = true
+			break
+		}
+		time.Sleep(time.Second)
+	}
+
+	// TODO on connection stop
+
+	log.WithFields(log.Fields{
+		"type": "devnotices_stop",
+		"udid": censorUuid(udid),
+	}).Info("Server <-> Client Notices Disconnected")
 }
