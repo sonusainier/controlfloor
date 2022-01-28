@@ -204,3 +204,46 @@ func (self *DevHandler) handleBrowserCleanup(c *gin.Context) {
 		"text": "ok",
 	})
 }
+
+func (self *DevHandler) handleStreamingRestart(c *gin.Context) {
+	udid, uok := c.GetQuery("udid")
+	if !uok {
+		c.JSON(http.StatusOK, SDeviceInfoFail{
+			Success: false,
+			Err:     "Must pass udid",
+		})
+		return
+	}
+
+	dev := getDevice(udid)
+	if dev == nil {
+		c.JSON(http.StatusOK, SDeviceInfoFail{
+			Success: false,
+			Err:     "No device with that udid",
+		})
+		return
+	}
+
+	provId := self.devTracker.getDevProvId(udid)
+	pc := self.devTracker.getProvConn(provId)
+
+	done := make(chan bool)
+
+	restart := "false"
+	pc.doRestart(udid, func(_ uj.JNode, json []byte) {
+		root, _ := uj.Parse(json)
+
+		restart = root.Get("restart").String()
+
+		done <- true
+	})
+
+	<-done
+
+	//
+
+	c.JSON(http.StatusOK, SDeviceRestart{
+		Udid:    udid,
+		Restart: restart,
+	})
+}
