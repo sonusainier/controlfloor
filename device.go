@@ -105,6 +105,7 @@ func (self *DevHandler) registerDeviceRoutes() {
 	uAuth.GET("/device/restart", self.handleDeviceRestart)
 	uAuth.POST("/device/launchsafariurl", func(c *gin.Context) { self.handleSafariUrl(c) })
 	uAuth.POST("/device/cleanbrowser", func(c *gin.Context) { self.handleBrowserCleanup(c) })
+	uAuth.GET("/echo", gin.HandlerFunc(self.echo))
 }
 
 type SRawInfo struct {
