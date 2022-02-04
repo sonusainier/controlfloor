@@ -7,7 +7,7 @@ replace github.com/nanoscopic/controlfloor_auth => ../controlfloor_auth_none
 replace github.com/nanoscopic/controlfloor_auth_admin => ../controlfloor_auth_none_b
 replace github.com/nanoscopic/controlfloor/docs => ./docs
 
-//replace github.com/nanoscopic/ujsonin/v2 => ../ujsonin/v2
+replace github.com/nanoscopic/ujsonin/v2 => ../ujsonin_private/v2
 
 require (
 	github.com/alexedwards/scs/v2 v2.4.0

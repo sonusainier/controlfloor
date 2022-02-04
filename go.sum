@@ -113,9 +113,6 @@ github.com/modern-go/reflect2 v1.0.1 h1:9f412s+6RmYXLWZSEzVVgPGK7C2PphHj5RJrvfx9
 github.com/modern-go/reflect2 v1.0.1/go.mod h1:bx2lNnkwVCuqBIxFjflWJWanXIb3RllmbCylyMrvgv0=
 github.com/nanoscopic/uclop v1.1.0 h1:fV2sQtzI1BkXuyqRUqPdark//m/XkyNJeGmikUt3844=
 github.com/nanoscopic/uclop v1.1.0/go.mod h1:vt+mTEEFoR1bgrwIZEHut/OM4bjfJOQsmNSIHnXyU9c=
-github.com/nanoscopic/ujsonin/v2 v2.0.4/go.mod h1:bDa6sFDIT+1l+Al8QJuhesenA5l4VaOxLLcl+yBpsFk=
-github.com/nanoscopic/ujsonin/v2 v2.0.6 h1:8BYDSijpkPg1szEawjwjlri7EfPyOucVgYXGAzsYh0c=
-github.com/nanoscopic/ujsonin/v2 v2.0.6/go.mod h1:bDa6sFDIT+1l+Al8QJuhesenA5l4VaOxLLcl+yBpsFk=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
 github.com/nkovacs/streamquote v0.0.0-20170412213628-49af9bddb229/go.mod h1:0aYXnNPJ8l7uZxf45rWW1a/uME32OF0rhiYGNQ2oF2E=
 github.com/onsi/ginkgo v1.6.0/go.mod h1:lLunBs/Ym6LB5Z9jYTR76FiuTmxDTDusOGeTQH+WWjE=
