@@ -389,3 +389,12 @@ func (self *ProviderConnection) doBrowserCleanup(udid string, bid string, onDone
 	}
 	self.provChan <- action
 }
+
+func (self *ProviderConnection) doRotateDevice(udid string, orientation string, onDone func(uj.JNode, []byte)) {
+	action := &ProvRotateDevice{
+		udid:        udid,
+		orientation: orientation,
+		onRes:       onDone,
+	}
+	self.provChan <- action
+}

@@ -39,6 +39,33 @@ func (self *ProvSafariUrl) asText(id int16) string {
 	return string(res)
 }
 
+type ProvRotateDeviceTestMsg struct {
+	Id          int16  `json:"id"`
+	Type        string `json:"type"`
+	Udid        string `json:"udid"`
+	Orientation string `json:"orientation"`
+}
+type ProvRotateDevice struct {
+	udid        string
+	orientation string
+	onRes       func(uj.JNode, []byte)
+}
+
+func (self *ProvRotateDevice) resHandler() func(data uj.JNode, rawData []byte) {
+	return self.onRes
+}
+func (self *ProvRotateDevice) needsResponse() bool { return true }
+func (self *ProvRotateDevice) asText(id int16) string {
+	msg := ProvRotateDeviceTestMsg{
+		Id:          id,
+		Orientation: self.orientation,
+		Type:        "rotatedevice",
+		Udid:        self.udid,
+	}
+	res, _ := json.Marshal(msg)
+	return string(res)
+}
+
 type ProvBrowserCleanUpMsg struct {
 	Id   int16  `json:"id"`
 	Type string `json:"type"`
@@ -198,6 +225,27 @@ func (self *DevHandler) handleBrowserCleanup(c *gin.Context) {
 	done := make(chan bool)
 
 	pc.doBrowserCleanup(udid, bid, func(uj.JNode, []byte) {
+		done <- true
+	})
+
+	<-done
+
+	c.HTML(http.StatusOK, "error", gin.H{
+		"text": "ok",
+	})
+}
+
+// @Summary Device - Change orientation
+// @Router /device/rotatedevice [POST]
+// @Param udid formData string true "Device UDID"
+// @Param orientation formData string true "portrait,portraitUpsideDown,landscapeLeft,landscapeRight"
+func (self *DevHandler) handleRotateDevice(c *gin.Context) {
+	orientation := c.PostForm("orientation")
+	pc, udid := self.getPc(c)
+
+	done := make(chan bool)
+
+	pc.doRotateDevice(udid, orientation, func(uj.JNode, []byte) {
 		done <- true
 	})
 
