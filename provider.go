@@ -4,7 +4,6 @@ import (
     "crypto/rand"
     "fmt"
     "encoding/hex"
-    "encoding/json"
     "io"
     "net/http"
     "strconv"
@@ -410,19 +409,20 @@ func (self *ProviderHandler) handleProviderWS( c *gin.Context ) {
         } else {
             cfresponse := reqTracker.processResp( t, msg )
             if cfresponse != nil {
-                if cfresponse.Action == "notice" && cfresponse.CFDeviceID != ""{
+                if cfresponse.MessageType == "notice" && cfresponse.CFDeviceID != ""{
                     // This is not a response; is a request from provider
                     noticeConn := self.devTracker.getNoticeOutput( cfresponse.CFDeviceID )
                     devInfo := self.devTracker.getDevInfo( cfresponse.CFDeviceID )
-                    fmt.Printf("Received Notice: %s %s\n", cfresponse.Status,cfresponse.Value)
+                    fmt.Printf("Received Notice: %s\n", cfresponse.Status)
                     if cfresponse.Status == "ORIENTATION_CHANGED"{
-                        devInfo.orientation = cfresponse.Value
+                        devInfo.orientation = cfresponse.StringValue()
                     }
                     //TODO: thread safety warning.  I *think* we are in the same thread that is processing other responses at the moment...
                     if noticeConn != nil {
                         fmt.Printf("Forwarded Notice: %s\n", cfresponse.Status)
-                        bytes,_ := json.Marshal(cfresponse) //might be manipulated from original message...
-                        noticeConn.socket.WriteMessage(ws.TextMessage,bytes)
+                        cfresponse.ClearRoutingData()
+                        bytes,_ := cfresponse.JSONBytes()
+                        noticeConn.socket.WriteMessage(ws.TextMessage,bytes) 
                     }                
                 }
             }

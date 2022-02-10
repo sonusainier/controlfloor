@@ -2,7 +2,6 @@ package main
 
 import (
     "fmt"
-    "encoding/json"
     mrand "math/rand"
 //    "strings"
     "sync"
@@ -33,7 +32,7 @@ func (self *ReqTracker) sendReq( req *CFRequest ) (error,string) {
     var reqText string
 //    req.CFServerRequestID = self.sequenceNumber
 //    self.sequenceNumber++
-    if req.needsResponse() {
+    if req.RequiresResponse || req.onRes != nil{ // Even if a response is not required, a response may still come (errors).  TODO: this would potentially a giant memory leak
         var id int16
         maxi := ^uint16(0) / 2
         self.lock.Lock()
@@ -45,16 +44,19 @@ func (self *ReqTracker) sendReq( req *CFRequest ) (error,string) {
         
         self.reqMap[ id ] = req
         self.lock.Unlock()
-        reqText = req.asText( id )
-    } else {
-        reqText = req.asText( 0 )
-    }
+//        reqText = req.asText( id )
+        req.CFServerRequestID = int(id)
+      }
+//    } else {
+//        reqText = req.asText( 0 )
+//    }
     
 //    if !strings.Contains( reqText, "ping" ) {
-        fmt.Printf("sending %s\n", reqText )
+        bytes,_ := req.JSONBytes()
+        fmt.Printf("sending %s\n", string(bytes) )
 //    }
     // send the request
-    err := self.conn.WriteMessage( ws.TextMessage, []byte(reqText) )
+    err := self.conn.WriteMessage( ws.TextMessage, bytes) //[]byte(reqText) )
     if err != nil {
         return err,reqText
     }
@@ -62,8 +64,9 @@ func (self *ReqTracker) sendReq( req *CFRequest ) (error,string) {
 }
 
 func (self *ReqTracker) processResp( msgType int, reqText []byte ) *CFResponse {
-    var cfresponse CFResponse
-    err := json.Unmarshal(reqText, &cfresponse)
+    cfresponse ,err := NewCFResponseFromJSON(reqText)
+//    err := json.Unmarshal(reqText, &cfresponse)
+    
     if err!=nil{
         fmt.Printf("Could not decode response from provider: %v",err)
         return nil
@@ -72,7 +75,7 @@ func (self *ReqTracker) processResp( msgType int, reqText []byte ) *CFResponse {
     id := cfresponse.CFServerRequestID
     
     if id == 0 {
-        return &cfresponse
+        return cfresponse
     }
     
     req := self.reqMap[ int16(id) ]
@@ -81,9 +84,9 @@ func (self *ReqTracker) processResp( msgType int, reqText []byte ) *CFResponse {
         return nil
     }
     //TODO:
-    resHandler := req.resHandler()
+    resHandler := req.onRes //resHandler()
     if resHandler != nil {
-        resHandler( cfresponse )
+        resHandler( *cfresponse )
     }
     
     self.lock.Lock()

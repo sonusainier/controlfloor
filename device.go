@@ -470,7 +470,7 @@ func (self *DevHandler) handleWebrtc( c *gin.Context ) {
         c.Writer.WriteHeader(200)
 //TODO:  use cfresponse.Value for whatever data is needed here...
 //TODO: need to json decode?
-        c.Writer.Write( []byte(cfresponse.Value) )
+        c.Writer.Write( []byte(cfresponse.StringValue()) )
 //        c.Writer.Write( raw )
         done <- true
     } )
@@ -1174,13 +1174,12 @@ func (self *DevHandler) handleDevNotices( c *gin.Context ) {
         if err != nil {
             fmt.Printf("Error writing to ws\n")
         }else{
-            fmt.Printf("Response forwarded to browser: Action: %s Status: %s",cfresponse.Action,cfresponse.Status)
+            fmt.Printf("Response forwarded to browser: Action: %s Status: %s",cfresponse.MessageType,cfresponse.Status)
         }
     }
 
 
     for {
-        var message CFRequest;
         t, msg, err := conn.ReadMessage()
         if err != nil {
             //abort = true
@@ -1190,41 +1189,20 @@ func (self *DevHandler) handleDevNotices( c *gin.Context ) {
             //tMsg := string( msg )
             b1 := []byte{ msg[0] }
             if string(b1) == "{" {
-                err = json.Unmarshal([]byte(msg),&message);
+                cfrequest, err := NewExternalCFRequestFromJSON(msg) //json.Unmarshal([]byte(msg),&message);
                 if err!=nil {
                     fmt.Println(err)
                 }
-                root, _ := uj.Parse( msg )
-                action := message.Action
+//                action := message.Action
                 fmt.Printf("Received message:msg %s\n",string(msg))
 
-                if action == "keys" {
-                    keys := root.Get("keys").String()
-                    fmt.Printf("Received keys:%s\n",keys)
-                    //keys, _ = url.QueryUnescape(root.Get("keys").String())
-                    //fmt.Printf("Received keys:%s\n",keys)
-
-//TODO:BEGIN HERE                    provConn.doKeys( udid, keys, 0, "", func( uj.JNode, []byte ) {
-//                    } )
-                } else if action == "text" {
-                    text := message.Text //root.Get("text").StringEscaped()
-                    fmt.Printf("Received text:%s\n",text)
-
-                //    provConn.doText( udid, text, func( uj.JNode, []byte ) {
-                //    } )
-                }
-                bytes, err := json.Marshal( message )
-                if err != nil {
-                    fmt.Println(err)
-                }
-                fmt.Println(string(bytes))
-                message.CFDeviceID = udid;
-                message.onRes = replyOverWebsocket
+                cfrequest.CFDeviceID = udid;
+                cfrequest.onRes = replyOverWebsocket
                 //TODO: request tracker expects an ack for everything
                 //need to switch to a channel model for websockets and drop the
                 //function callback 
-                message.CFServerRequiresAck = 1 
-                provConn.provChan <- &message
+                cfrequest.RequiresResponse = true 
+                provConn.provChan <- cfrequest
 
 //                var resp WsResponse
 //                if action == "timesync" {

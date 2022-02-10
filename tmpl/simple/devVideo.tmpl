@@ -99,6 +99,7 @@
     "PageUp"    : 1,
     "End"       : 1,
     "Home"      : 1,
+    "Delete"      : 1,
    // "F1"  : 1,  //Uncomment to send to device 
    // "F2"  : 1,
    // "F3"  : 1,
@@ -140,17 +141,17 @@
     y = Math.floor( y*clickHeg/displayHeg );
     return [x,y];
   }
-  function sendCFRequest(action,options){
-      options['action']=action;
-      options['sequenceNumber']=sequenceNumber++;
+  function sendCFRequest(action,args){
+      let request = {action:action,tag:sequenceNumber,args:args}
+      sequenceNumber++;
       wait();
-      commandSocket.send(JSON.stringify(options));
+      commandSocket.send(JSON.stringify(request));
   }
-  function sendTapOrClickCFRequest(canvas, event, action, options = {}){
+  function sendTapOrClickCFRequest(canvas, event, action, args = {}){
       let [x,y] = getEventCoordinatesOnDevice(canvas,event);
-      options['x'] = x;
-      options['y'] = y;
-      sendCFRequest(action,options);
+      args['x'] = x;
+      args['y'] = y;
+      sendCFRequest(action,args);
   }
   function _replace(node,rep) {
     node.parentNode.replaceChild(rep,node);
@@ -517,12 +518,18 @@
 
       if( dx  >= 40 || dy >= 40 ) { //TODO: twiddle 
         sendCFRequest("swipe", {
-            x1: x1,
-            y1: y1,
-            x2: x2,
-            y2: y2,
-            duration:sDiff
+            path:[
+                {x:x1,y:y1},
+                {x:x2,y:y2,offset:sDiff},
+            ]
         });
+//        sendCFRequest("swipe", {
+//            x1: x1,
+//            y1: y1,
+//            x2: x2,
+//            y2: y2,
+//            duration:sDiff
+//        });
       } else if( sDiff > 0.2 ) {
           sendTapOrClickCFRequest(canvas, prevMouseDownEvent, "tap", { "duration":sDiff }); //aka longPress
       }
@@ -588,22 +595,22 @@ return true;
     commandSocket.onmessage = function( event ) {
         var data = event.data;
         if( typeof data === 'string' ) {
-            var json = JSON.parse (data); 
-            if(json.action!="notice"){ //only messages currently are notices and acknowledgements for sent requests
+            var message = JSON.parse (data); 
+            if(message.type!="notice"){ //only messages currently are notices and acknowledgements for sent requests
                 unwait();
             }
             else{
-                if(json.status=="ORIENTATION_CHANGED"){
+                if(message.status=="ORIENTATION_CHANGED"){
                     //console.log( data );
-                    var o = json.value;
+                    var o = message.value;
                     setOrientation( o );
                 }
                 //TODO: should we let the server ping us?
-                //this is a placeholder, currently json.action reflects our original action
+                //this is a placeholder, currently message.action reflects our original action
                 //so when we send a "ping" we get back a "ping" with a value of "pong" 
                 //Maybe that should change.  Should probably have a protocol for the server
                 //pinging us...
-                else if(json.status=="PING"){
+                else if(response.status=="PING"){
                     //Unimplemented, untested (server not currently sending pings)
                     sendCFRequest("pong",{})
                 }

@@ -25,11 +25,13 @@ func (self *ProviderConnection) initWebrtc( udid string, offer string, onDone fu
 //        offer: offer,
 //        onRes: onDone,
 //    }
-    action := &CFRequest{
-        CFDeviceID: udid,
-        Offer: offer,
-        onRes: onDone,
-    }
+//    action := &CFRequest{
+//        CFDeviceID: udid,
+//        Offer: offer,
+//        onRes: onDone,
+//    }
+    action := NewCFRequest("initWebRTC",WebRTCRequest{Offer:offer})
+    action.onRes = onDone
     if self == nil || self.provChan == nil { 
         //errorChannelGone( action ); 
         return 
@@ -39,8 +41,9 @@ func (self *ProviderConnection) initWebrtc( udid string, offer string, onDone fu
 
 
 func errorChannelGone( message *CFRequest ) {
+    b,_ :=  message.JSONBytes()
     fmt.Printf("Failed to send message to provider:\n")
-    fmt.Printf("  %s\n", message.asText(0) )
+    fmt.Printf("  %s\n", string(b) )
 }
 
 
@@ -61,7 +64,9 @@ func (self *ProviderConnection) startImgStream( udid string ) {
         //errorChannelGone( &ProvStartStream{ udid: udid } ); 
         return 
     }
-    self.provChan <- &CFRequest{Action:"startVideoStream",CFDeviceID:udid} // &ProvStartStream{ udid: udid }
+    cfrequest := NewCFRequest(CFStartVideoStream,nil)
+    cfrequest.CFDeviceID = udid
+    self.provChan <- cfrequest
 }
 
 func (self *ProviderConnection) stopImgStream( udid string ) {
@@ -69,8 +74,9 @@ func (self *ProviderConnection) stopImgStream( udid string ) {
         //errorChannelGone( &ProvStopStream{ udid: udid } ); 
         return
     }
-    self.provChan <- &CFRequest{Action:"stopVideoStream",CFDeviceID:udid} // &ProvStartStream{ udid: udid }
-//    self.provChan <- &ProvStopStream{ udid: udid }
+    cfrequest := NewCFRequest(CFStopVideoStream,nil)
+    cfrequest.CFDeviceID = udid
+    self.provChan <- cfrequest
 }
 
 
