@@ -42,12 +42,65 @@ func NewDevHandler(
     }
 }
 
+
+
+func (self *DevHandler) handlePOSTAction( c *gin.Context ) {
+    udid, uok := c.GetQuery("udid")
+    action := c.Param("action")
+    if !uok {
+        c.JSON( http.StatusBadRequest, NewErrorResponse(nil,"udid must be passed in query string. Any arguments should be POSTed as JSON.") )
+        return
+    }
+    provId := self.devTracker.getDevProvId( udid )
+    provConn := self.devTracker.getProvConn( provId )
+    if provConn == nil {
+        c.JSON( http.StatusOK, NewErrorResponse(nil,fmt.Sprintf( "Could not get provider for udid:%s\n", udid )) )
+        return
+    }
+
+    jsonData, err := c.GetRawData()
+    cfrequest := NewCFRequest(action,nil)
+    cfrequest.Args = jsonData
+    _,err = cfrequest.JSONBytes()
+    if err != nil{
+        c.JSON( http.StatusOK, NewErrorResponse(nil,err.Error()) )
+        return
+    }
+
+    done := make( chan bool, 2 )
+    reply := func (cfresponse CFResponse){
+        cfresponse.ClearRoutingData()
+        if c != nil{ //race condition
+            c.JSON( http.StatusOK, cfresponse )
+            done <- true 
+            c = nil
+        }
+    }
+
+    cfrequest.CFDeviceID = udid
+    cfrequest.onRes = reply
+    cfrequest.RequiresResponse = true
+    provConn.provChan <- cfrequest
+
+    time.AfterFunc(time.Second*10, func() { done <- true })
+
+    <- done
+    if c!=nil{ //race condition
+        c.JSON( http.StatusOK, NewErrorResponse(nil,"Request to device timed out" ))
+        c = nil //theoretical race condition if the callback actually happens simulataneously with the timeout.  Should lock something....TODO
+    }
+}
+
+
+
 func (self *DevHandler) registerDeviceRoutes() {
     pAuth := self.providerAuthGroup
     uAuth := self.userAuthGroup
     aAuth := self.adminAuthGroup
     
     fmt.Println("Registering device routes")
+    uAuth.POST("/device/action/:action",         func( c *gin.Context ) { self.handlePOSTAction( c ) } )
+    uAuth.GET("/device/action/:action",         func( c *gin.Context ) { self.handlePOSTAction( c ) } )
     pAuth.POST("/device/status/:variant", func( c *gin.Context ) { self.handleDevStatus( c ) } )
     pAuth.POST("/device/orientation",     func( c *gin.Context ) { self.handleDevOrientation( c ) } )
     // - Device is present on provider
