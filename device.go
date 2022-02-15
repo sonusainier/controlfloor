@@ -11,7 +11,6 @@ import (
     uj "github.com/nanoscopic/ujsonin/v2/mod"
     log "github.com/sirupsen/logrus"
     ws "github.com/gorilla/websocket"
-//    "net/url"
 )
 
 
@@ -102,29 +101,13 @@ func (self *DevHandler) registerDeviceRoutes() {
     uAuth.POST("/device/action/:action",         func( c *gin.Context ) { self.handlePOSTAction( c ) } )
     uAuth.GET("/device/action/:action",         func( c *gin.Context ) { self.handlePOSTAction( c ) } )
     pAuth.POST("/device/status/:variant", func( c *gin.Context ) { self.handleDevStatus( c ) } )
-    pAuth.POST("/device/orientation",     func( c *gin.Context ) { self.handleDevOrientation( c ) } )
+//    pAuth.POST("/device/orientation",     func( c *gin.Context ) { self.handleDevOrientation( c ) } )
     // - Device is present on provider
     // - Device Info fetched from device
     // - WDA start/stop
     // - Video Streamer start/stop
     // - Video seems active/inactive
     
-    //uAuth.GET("/devClick", showDevClick )
-//    uAuth.POST("/device/click",       func( c *gin.Context ) { self.handleDevClick( c ) } )
-//    uAuth.POST("/device/doubleclick",       func( c *gin.Context ) { self.handleDevDoubleclick( c ) } )
-//    uAuth.POST("/device/mouseDown",   func( c *gin.Context ) { self.handleDevMouseDown( c ) } )
-//    uAuth.POST("/device/mouseUp",     func( c *gin.Context ) { self.handleDevMouseUp( c ) } )
-//    uAuth.POST("/device/hardPress",   func( c *gin.Context ) { self.handleDevHardPress( c ) } )
-//    uAuth.POST("/device/longPress",   func( c *gin.Context ) { self.handleDevLongPress( c ) } )
-//    uAuth.POST("/device/home",        func( c *gin.Context ) { self.handleDevHome( c ) } )
-//    uAuth.POST("/device/taskSwitcher",func( c *gin.Context ) { self.handleDevTaskSwitcher( c ) } )
-//    uAuth.POST("/device/shake",       func( c *gin.Context ) { self.handleDevShake( c ) } )
-//    uAuth.POST("/device/cc",          func( c *gin.Context ) { self.handleDevCC( c ) } )
-//    uAuth.POST("/device/assistiveTouch", func( c *gin.Context ) { self.handleDevAssistiveTouch( c ) } )
-//    uAuth.POST("/device/swipe",       func( c *gin.Context ) { self.handleDevSwipe( c ) } )
-//    uAuth.POST("/device/keys",        func( c *gin.Context ) { self.handleKeys( c ) } )
-//    uAuth.POST("/device/text",        func( c *gin.Context ) { self.handleText( c ) } )
-//    uAuth.POST("/device/source",      func( c *gin.Context ) { self.handleSource( c ) } )
     uAuth.POST("/device/shutdown",    func( c *gin.Context ) { self.handleShutdown( c ) } )
       
     uAuth.GET("/device/info",         func( c *gin.Context ) { self.showDevInfo( c ) } )
@@ -135,8 +118,7 @@ func (self *DevHandler) registerDeviceRoutes() {
     
     uAuth.GET("/device/imgStream",    func( c *gin.Context ) { self.handleImgStream( c ) } )
     uAuth.POST("/device/initWebrtc",  func( c *gin.Context ) { self.handleWebrtc( c ) } )
-//    uAuth.GET("/device/ws",           func( c *gin.Context ) { self.handleDevWs( c ) } )
-    uAuth.GET("/device/notices",      func( c *gin.Context ) { self.handleDevNotices( c ) } )
+    uAuth.GET("/device/webSocket",      func( c *gin.Context ) { self.handleWebSocket( c ) } )
     
 //    uAuth.POST("/device/launch",      func( c *gin.Context ) { self.handleDevLaunch( c ) } )
 //    uAuth.POST("/device/kill",        func( c *gin.Context ) { self.handleDevKill( c ) } )
@@ -151,7 +133,6 @@ func (self *DevHandler) registerDeviceRoutes() {
     uAuth.GET("/device/kick", self.devKick )
     uAuth.POST("/device/videoStop", self.stopDevVideo )
     
-//    uAuth.GET("/device/ping", self.handleDevPing )
     uAuth.GET("/device/inspect", self.showDevInspect )
     uAuth.GET("/device/wdaPort", self.showWdaPort )
 }
@@ -830,15 +811,16 @@ func dummy6() {}
 // @Param udid query string true "Device UDID"
 func dummy7() {}
 
-type OrientationResult struct {
-    Type string `json:"type"`
-    Orientation string `json:"orientation"`
-}
-func (self *OrientationResult) asBytes() []byte {
-    text, _ := json.Marshal( self )
-    return text
-}
+//type OrientationResult struct {
+//    Type string `json:"type"`
+//    Orientation string `json:"orientation"`
+//}
+//func (self *OrientationResult) asBytes() []byte {
+//    text, _ := json.Marshal( self )
+//    return text
+//}
 
+/* Orientation now sent over provider socket. Delete code after testing & confirmation
 // @Summary Device Orientation
 // @Router /provider/device/orientation [POST]
 // @Param udid query string true "Device UDID"
@@ -868,6 +850,7 @@ func (self *DevHandler) handleDevOrientation( c *gin.Context, ) {
         "text": "ok",
     } )
 }
+*/
 
 // @Summary Device Status - Provision Stopped
 // @Router /provider/device/status/provisionStopped [POST]
@@ -1100,96 +1083,10 @@ func (self *DevHandler) handleImgStream( c *gin.Context ) {
     provConn.startImgStream( udid )
 }
 
-type WsResponse interface {
-    String() string
-}
-
-type SyncResponse struct {
-    id int
-}
-
-func ( self SyncResponse ) String() string {
-    return ""
-}
-
-// @Description Device - Device Command Websocket
-// @Router /device/ws [GET]
+// @Description Device - JSON Command/Control/Notice Websocket
+// @Router /device/webSocket [GET]
 // @Param udid query string true "Device UDID"
-//func (self *DevHandler) handleDevWs( c *gin.Context ) {
-//    udid, uok := c.GetQuery("udid")
-//    if !uok {
-//        c.HTML( http.StatusOK, "error", gin.H{
-//            "text": "no uuid set",
-//        } )
-//        return
-//    }
-//    
-//    log.WithFields( log.Fields{
-//        "type": "devws_start",
-//        "udid": censorUuid( udid ),
-//    } ).Info("Server <-> Client WS Connected")
-//    
-//    writer := c.Writer
-//    req := c.Request
-//    conn, err := wsupgrader.Upgrade( writer, req, nil )
-//    if err != nil {
-//        fmt.Println("Failed to set websocket upgrade: %+v", err)
-//        return
-//    }
-//    
-//    //abort := false
-//    
-//    /*go func() {
-//        for {
-//            if abort { return }
-//            err := conn.WriteMessage("ping")
-//            if err != nil {
-//                abort = true
-//                break
-//            }
-//            time.Sleep( time.Second )
-//        }
-//    }()*/
-//    
-//    for {
-//        //if abort { break }
-//        t, msg, err := conn.ReadMessage()
-//        if err != nil {
-//            //abort = true
-//            break
-//        }
-//        if t == ws.TextMessage {
-//            //tMsg := string( msg )
-//            b1 := []byte{ msg[0] }
-//            if string(b1) == "{" {
-//                root, _ := uj.Parse( msg )
-//                id := root.Get("id").Int()
-//                mType := root.Get("type").String()
-//                var resp WsResponse
-//                if mType == "timesync" {
-//                    resp = SyncResponse{id:id}
-//                }
-//                if resp != nil {
-//                    respStr := resp.String()
-//                    err := conn.WriteMessage( ws.TextMessage, []byte( respStr ) )
-//                    if err != nil {
-//                        fmt.Printf("Error writing to ws\n")
-//                    }
-//                }
-//            }
-//        }
-//    }
-//    
-//    log.WithFields( log.Fields{
-//        "type": "devws_stop",
-//        "udid": censorUuid( udid ),
-//    } ).Info("Server <-> Client WS Disconnected")
-//}
-
-// @Description Device - Device Notices Websocket
-// @Router /device/notices [GET]
-// @Param udid query string true "Device UDID"
-func (self *DevHandler) handleDevNotices( c *gin.Context ) {
+func (self *DevHandler) handleWebSocket( c *gin.Context ) {
     udid, uok := c.GetQuery("udid")
     if !uok {
         c.HTML( http.StatusOK, "error", gin.H{
@@ -1199,9 +1096,9 @@ func (self *DevHandler) handleDevNotices( c *gin.Context ) {
     }
     
     log.WithFields( log.Fields{
-        "type": "devnotices_start",
+        "type": "devwebsocket_start",
         "udid": censorUuid( udid ),
-    } ).Info("Server <-> Client Notices Connected")
+    } ).Info("Server <-> Client Web Socket Connected")
     
     writer := c.Writer
     req := c.Request
@@ -1212,6 +1109,8 @@ func (self *DevHandler) handleDevNotices( c *gin.Context ) {
     }
     
     //abort := false
+    //TODO: should be able to have multiple subscribers to notices
+    //Currenty only last to connect gets notices
     self.devTracker.setNoticeOutput( udid, &NoticeConn{
         socket: conn,
     } )
@@ -1246,7 +1145,6 @@ func (self *DevHandler) handleDevNotices( c *gin.Context ) {
                 if err!=nil {
                     fmt.Println(err)
                 }
-//                action := message.Action
                 fmt.Printf("Received message:msg %s\n",string(msg))
 
                 cfrequest.CFDeviceID = udid;
@@ -1256,18 +1154,6 @@ func (self *DevHandler) handleDevNotices( c *gin.Context ) {
                 //function callback 
                 cfrequest.RequiresResponse = true 
                 provConn.provChan <- cfrequest
-
-//                var resp WsResponse
-//                if action == "timesync" {
-//                    resp = SyncResponse{id:id}
-//                }
-//                if resp != nil {
-//                    respStr := resp.String()
-//                    err := conn.WriteMessage( ws.TextMessage, []byte( respStr ) )
-//                    if err != nil {
-//                        fmt.Printf("Error writing to ws\n")
-//                    }
-//                }
             }
         }
     }
@@ -1275,7 +1161,7 @@ func (self *DevHandler) handleDevNotices( c *gin.Context ) {
     // TODO on connection stop
         
     log.WithFields( log.Fields{
-        "type": "devnotices_stop",
+        "type": "devwebsocket_stop",
         "udid": censorUuid( udid ),
-    } ).Info("Server <-> Client Notices Disconnected")
+    } ).Info("Server <-> Client Web Socket Disconnected")
 }
