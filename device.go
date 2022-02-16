@@ -12,6 +12,7 @@ import (
 	ws "github.com/gorilla/websocket"
 	uj "github.com/nanoscopic/ujsonin/v2/mod"
 	log "github.com/sirupsen/logrus"
+	//    "net/url"
 )
 
 type DevHandler struct {
@@ -41,12 +42,61 @@ func NewDevHandler(
 	}
 }
 
+func (self *DevHandler) handlePOSTAction(c *gin.Context) {
+	udid, uok := c.GetQuery("udid")
+	action := c.Param("action")
+	if !uok {
+		c.JSON(http.StatusBadRequest, NewErrorResponse(nil, "udid must be passed in query string. Any arguments should be POSTed as JSON."))
+		return
+	}
+	provId := self.devTracker.getDevProvId(udid)
+	provConn := self.devTracker.getProvConn(provId)
+	if provConn == nil {
+		c.JSON(http.StatusOK, NewErrorResponse(nil, fmt.Sprintf("Could not get provider for udid:%s\n", udid)))
+		return
+	}
+
+	jsonData, err := c.GetRawData()
+	cfrequest := NewCFRequest(action, nil)
+	cfrequest.Args = jsonData
+	_, err = cfrequest.JSONBytes()
+	if err != nil {
+		c.JSON(http.StatusOK, NewErrorResponse(nil, err.Error()))
+		return
+	}
+
+	done := make(chan bool, 2)
+	reply := func(cfresponse CFResponse) {
+		cfresponse.ClearRoutingData()
+		if c != nil { //race condition
+			c.JSON(http.StatusOK, cfresponse)
+			done <- true
+			c = nil
+		}
+	}
+
+	cfrequest.CFDeviceID = udid
+	cfrequest.onRes = reply
+	cfrequest.RequiresResponse = true
+	provConn.provChan <- cfrequest
+
+	time.AfterFunc(time.Second*10, func() { done <- true })
+
+	<-done
+	if c != nil { //race condition
+		c.JSON(http.StatusOK, NewErrorResponse(nil, "Request to device timed out"))
+		c = nil //theoretical race condition if the callback actually happens simulataneously with the timeout.  Should lock something....TODO
+	}
+}
+
 func (self *DevHandler) registerDeviceRoutes() {
 	pAuth := self.providerAuthGroup
 	uAuth := self.userAuthGroup
 	aAuth := self.adminAuthGroup
 
 	fmt.Println("Registering device routes")
+	uAuth.POST("/device/action/:action", func(c *gin.Context) { self.handlePOSTAction(c) })
+	uAuth.GET("/device/action/:action", func(c *gin.Context) { self.handlePOSTAction(c) })
 	pAuth.POST("/device/status/:variant", func(c *gin.Context) { self.handleDevStatus(c) })
 	pAuth.POST("/device/orientation", func(c *gin.Context) { self.handleDevOrientation(c) })
 	// - Device is present on provider
@@ -56,21 +106,21 @@ func (self *DevHandler) registerDeviceRoutes() {
 	// - Video seems active/inactive
 
 	//uAuth.GET("/devClick", showDevClick )
-	uAuth.POST("/device/click", func(c *gin.Context) { self.handleDevClick(c) })
-	uAuth.POST("/device/doubleclick", func(c *gin.Context) { self.handleDevDoubleclick(c) })
-	uAuth.POST("/device/mouseDown", func(c *gin.Context) { self.handleDevMouseDown(c) })
-	uAuth.POST("/device/mouseUp", func(c *gin.Context) { self.handleDevMouseUp(c) })
-	uAuth.POST("/device/hardPress", func(c *gin.Context) { self.handleDevHardPress(c) })
-	uAuth.POST("/device/longPress", func(c *gin.Context) { self.handleDevLongPress(c) })
-	uAuth.POST("/device/home", func(c *gin.Context) { self.handleDevHome(c) })
-	uAuth.POST("/device/taskSwitcher", func(c *gin.Context) { self.handleDevTaskSwitcher(c) })
-	uAuth.POST("/device/shake", func(c *gin.Context) { self.handleDevShake(c) })
-	uAuth.POST("/device/cc", func(c *gin.Context) { self.handleDevCC(c) })
-	uAuth.POST("/device/assistiveTouch", func(c *gin.Context) { self.handleDevAssistiveTouch(c) })
-	uAuth.POST("/device/swipe", func(c *gin.Context) { self.handleDevSwipe(c) })
-	uAuth.POST("/device/keys", func(c *gin.Context) { self.handleKeys(c) })
-	uAuth.POST("/device/text", func(c *gin.Context) { self.handleText(c) })
-	uAuth.POST("/device/source", func(c *gin.Context) { self.handleSource(c) })
+	//    uAuth.POST("/device/click",       func( c *gin.Context ) { self.handleDevClick( c ) } )
+	//    uAuth.POST("/device/doubleclick",       func( c *gin.Context ) { self.handleDevDoubleclick( c ) } )
+	//    uAuth.POST("/device/mouseDown",   func( c *gin.Context ) { self.handleDevMouseDown( c ) } )
+	//    uAuth.POST("/device/mouseUp",     func( c *gin.Context ) { self.handleDevMouseUp( c ) } )
+	//    uAuth.POST("/device/hardPress",   func( c *gin.Context ) { self.handleDevHardPress( c ) } )
+	//    uAuth.POST("/device/longPress",   func( c *gin.Context ) { self.handleDevLongPress( c ) } )
+	//    uAuth.POST("/device/home",        func( c *gin.Context ) { self.handleDevHome( c ) } )
+	//    uAuth.POST("/device/taskSwitcher",func( c *gin.Context ) { self.handleDevTaskSwitcher( c ) } )
+	//    uAuth.POST("/device/shake",       func( c *gin.Context ) { self.handleDevShake( c ) } )
+	//    uAuth.POST("/device/cc",          func( c *gin.Context ) { self.handleDevCC( c ) } )
+	//    uAuth.POST("/device/assistiveTouch", func( c *gin.Context ) { self.handleDevAssistiveTouch( c ) } )
+	//    uAuth.POST("/device/swipe",       func( c *gin.Context ) { self.handleDevSwipe( c ) } )
+	//    uAuth.POST("/device/keys",        func( c *gin.Context ) { self.handleKeys( c ) } )
+	//    uAuth.POST("/device/text",        func( c *gin.Context ) { self.handleText( c ) } )
+	//    uAuth.POST("/device/source",      func( c *gin.Context ) { self.handleSource( c ) } )
 	uAuth.POST("/device/shutdown", func(c *gin.Context) { self.handleShutdown(c) })
 
 	uAuth.GET("/device/info", func(c *gin.Context) { self.showDevInfo(c) })
@@ -81,15 +131,15 @@ func (self *DevHandler) registerDeviceRoutes() {
 
 	uAuth.GET("/device/imgStream", func(c *gin.Context) { self.handleImgStream(c) })
 	uAuth.POST("/device/initWebrtc", func(c *gin.Context) { self.handleWebrtc(c) })
-	uAuth.GET("/device/ws", func(c *gin.Context) { self.handleDevWs(c) })
+	//    uAuth.GET("/device/ws",           func( c *gin.Context ) { self.handleDevWs( c ) } )
 	uAuth.GET("/device/notices", func(c *gin.Context) { self.handleDevNotices(c) })
 
-	uAuth.POST("/device/launch", func(c *gin.Context) { self.handleDevLaunch(c) })
-	uAuth.POST("/device/kill", func(c *gin.Context) { self.handleDevKill(c) })
+	//    uAuth.POST("/device/launch",      func( c *gin.Context ) { self.handleDevLaunch( c ) } )
+	//    uAuth.POST("/device/kill",        func( c *gin.Context ) { self.handleDevKill( c ) } )
 
-	aAuth.POST("/device/allowApp", func(c *gin.Context) { self.handleDevAllowApp(c) })
-	aAuth.POST("/device/restrictApp", func(c *gin.Context) { self.handleDevRestrictApp(c) })
-	aAuth.GET("/device/listRestrictedApps", func(c *gin.Context) { self.handleDevListRestrictedApps(c) })
+	//    aAuth.POST("/device/allowApp",    func( c *gin.Context ) { self.handleDevAllowApp( c ) } )
+	//    aAuth.POST("/device/restrictApp", func( c *gin.Context ) { self.handleDevRestrictApp( c ) } )
+	//    aAuth.GET("/device/listRestrictedApps", func( c *gin.Context ) { self.handleDevListRestrictedApps( c ) } )
 
 	uAuth.GET("/device/video", self.showDevVideo)
 	uAuth.GET("/device/videoNew", self.showDevVideoNew)
@@ -97,16 +147,16 @@ func (self *DevHandler) registerDeviceRoutes() {
 	uAuth.GET("/device/kick", self.devKick)
 	uAuth.POST("/device/videoStop", self.stopDevVideo)
 
-	uAuth.GET("/device/ping", self.handleDevPing)
+	//    uAuth.GET("/device/ping", self.handleDevPing )
 	uAuth.GET("/device/inspect", self.showDevInspect)
 	uAuth.GET("/device/wdaPort", self.showWdaPort)
 
-	uAuth.GET("/device/refresh", self.handleDeviceRefresh)
-	uAuth.GET("/device/restart", self.handleDeviceRestart)
-	uAuth.POST("/device/launchsafariurl", func(c *gin.Context) { self.handleSafariUrl(c) })
-	uAuth.POST("/device/cleanbrowser", func(c *gin.Context) { self.handleBrowserCleanup(c) })
-	uAuth.POST("/device/rotatedevice", func(c *gin.Context) { self.handleRotateDevice(c) })
-	uAuth.GET("/echo", gin.HandlerFunc(self.echo))
+	// uAuth.GET("/device/refresh", self.handleDeviceRefresh)
+	// uAuth.GET("/device/restart", self.handleDeviceRestart)
+	// uAuth.POST("/device/launchsafariurl", func(c *gin.Context) { self.handleSafariUrl(c) })
+	// uAuth.POST("/device/cleanbrowser", func(c *gin.Context) { self.handleBrowserCleanup(c) })
+	// uAuth.POST("/device/rotatedevice", func(c *gin.Context) { self.handleRotateDevice(c) })
+	// uAuth.GET("/echo", gin.HandlerFunc(self.echo))
 }
 
 type SRawInfo struct {
@@ -171,24 +221,25 @@ func (self *DevHandler) showWdaPort(c *gin.Context) {
 
 	//
 
-	provId := self.devTracker.getDevProvId(udid)
-	pc := self.devTracker.getProvConn(provId)
+	//provId := self.devTracker.getDevProvId( udid )
+	//pc := self.devTracker.getProvConn( provId )
 
-	done := make(chan bool)
+	//done := make( chan bool )
 
 	ip := "unknown"
 	mac := "unknown"
 
-	pc.doWifiIp(udid, func(_ uj.JNode, json []byte) {
-		root, _ := uj.Parse(json)
-
-		ip = root.Get("ip").String()
-		mac = root.Get("mac").String()
-
-		done <- true
-	})
-
-	<-done
+	//TODO  get Wifi IP
+	//    pc.doWifiIp( udid, func( _ uj.JNode, json []byte ) {
+	//        root, _ := uj.Parse( json )
+	//
+	//        ip = root.Get("ip").String()
+	//        mac = root.Get("mac").String()
+	//
+	//        done <- true
+	//    } )
+	//
+	//    <- done
 
 	//
 
@@ -476,503 +527,6 @@ func (self *DevHandler) getPcGET(c *gin.Context) (*ProviderConnection, string) {
 	return provConn, udid
 }
 
-// @Summary Device - Click coordinate
-// @Router /device/click [POST]
-// @Param udid formData string true "Device UDID"
-// @Param x formData int true "x"
-// @Param y formData int true "y"
-func (self *DevHandler) handleDevClick(c *gin.Context) {
-	x, _ := strconv.Atoi(c.PostForm("x"))
-	y, _ := strconv.Atoi(c.PostForm("y"))
-	fmt.Printf("Request proto %s\n", c.Request.Proto)
-	pc, udid := self.getPc(c)
-	if pc == nil {
-		c.HTML(http.StatusOK, "error", gin.H{
-			"text": "nok",
-		})
-		return
-	}
-
-	done := make(chan bool)
-
-	pc.doClick(udid, x, y, func(uj.JNode, []byte) {
-		done <- true
-	})
-
-	<-done
-
-	c.HTML(http.StatusOK, "error", gin.H{
-		"text": "ok",
-	})
-}
-
-// @Summary Device - Doubleclick coordinate
-// @Router /device/doubleclick [POST]
-// @Param udid formData string true "Device UDID"
-// @Param x formData int true "x"
-// @Param y formData int true "y"
-func (self *DevHandler) handleDevDoubleclick(c *gin.Context) {
-	x, _ := strconv.Atoi(c.PostForm("x"))
-	y, _ := strconv.Atoi(c.PostForm("y"))
-	fmt.Printf("Request proto %s\n", c.Request.Proto)
-	pc, udid := self.getPc(c)
-	if pc == nil {
-		c.HTML(http.StatusOK, "error", gin.H{
-			"text": "nok",
-		})
-		return
-	}
-
-	done := make(chan bool)
-
-	pc.doDoubleclick(udid, x, y, func(uj.JNode, []byte) {
-		done <- true
-	})
-
-	<-done
-
-	c.HTML(http.StatusOK, "error", gin.H{
-		"text": "ok",
-	})
-}
-
-// @Summary Device - Launch app
-// @Router /device/launch [POST]
-// @Param udid formData string true "Device UDID"
-// @Param bid formData string true "[bundle id]"
-func (self *DevHandler) handleDevLaunch(c *gin.Context) {
-	bid := c.PostForm("bid")
-	pc, udid := self.getPc(c)
-	if pc == nil {
-		c.HTML(http.StatusOK, "error", gin.H{
-			"text": "nok",
-		})
-		return
-	}
-
-	done := make(chan bool)
-
-	pc.doLaunch(udid, bid, func(uj.JNode, []byte) {
-		done <- true
-	})
-
-	<-done
-
-	c.HTML(http.StatusOK, "error", gin.H{
-		"text": "ok",
-	})
-}
-
-// @Summary Device - Kill app
-// @Router /device/kill [POST]
-// @Param udid formData string true "Device UDID"
-// @Param bid formData string true "[bundle id]"
-func (self *DevHandler) handleDevKill(c *gin.Context) {
-	bid := c.PostForm("bid")
-	pc, udid := self.getPc(c)
-	if pc == nil {
-		c.HTML(http.StatusOK, "error", gin.H{
-			"text": "nok",
-		})
-		return
-	}
-
-	done := make(chan bool)
-
-	pc.doKill(udid, bid, func(uj.JNode, []byte) {
-		done <- true
-	})
-
-	<-done
-
-	c.HTML(http.StatusOK, "error", gin.H{
-		"text": "ok",
-	})
-}
-
-// @Summary Device - Restrict app
-// @Router /device/restrictApp [POST]
-// @Param udid formData string true "Device UDID"
-// @Param bid formData string true "[bundle id]"
-func (self *DevHandler) handleDevRestrictApp(c *gin.Context) {
-	bid := c.PostForm("bid")
-	pc, udid := self.getPc(c)
-	if pc == nil {
-		c.HTML(http.StatusOK, "error", gin.H{
-			"text": "nok",
-		})
-		return
-	}
-
-	done := make(chan bool)
-
-	pc.doRestrictApp(udid, bid, func(uj.JNode, []byte) {
-		done <- true
-	})
-
-	<-done
-
-	c.HTML(http.StatusOK, "error", gin.H{
-		"text": "ok",
-	})
-}
-
-// @Summary Device - Allow app
-// @Router /device/allowApp [POST]
-// @Param udid formData string true "Device UDID"
-// @Param bid formData string true "[bundle id]"
-func (self *DevHandler) handleDevAllowApp(c *gin.Context) {
-	bid := c.PostForm("bid")
-	pc, udid := self.getPc(c)
-	if pc == nil {
-		c.HTML(http.StatusOK, "error", gin.H{
-			"text": "nok",
-		})
-		return
-	}
-
-	done := make(chan bool)
-
-	pc.doAllowApp(udid, bid, func(uj.JNode, []byte) {
-		done <- true
-	})
-
-	<-done
-
-	c.HTML(http.StatusOK, "error", gin.H{
-		"text": "ok",
-	})
-}
-
-// @Summary Device - Mouse down
-// @Router /device/mouseDown [POST]
-// @Param udid formData string true "Device UDID"
-// @Param x formData int true "x"
-// @Param y formData int true "y"
-func (self *DevHandler) handleDevMouseDown(c *gin.Context) {
-	x, _ := strconv.Atoi(c.PostForm("x"))
-	y, _ := strconv.Atoi(c.PostForm("y"))
-	pc, udid := self.getPc(c)
-	if pc == nil {
-		c.HTML(http.StatusOK, "error", gin.H{
-			"text": "nok",
-		})
-		return
-	}
-
-	done := make(chan bool)
-
-	pc.doMouseDown(udid, x, y, func(uj.JNode, []byte) {
-		done <- true
-	})
-
-	<-done
-
-	c.HTML(http.StatusOK, "error", gin.H{
-		"text": "ok",
-	})
-}
-
-// @Summary Device - Mouse up
-// @Router /device/mouseUp [POST]
-// @Param udid formData string true "Device UDID"
-// @Param x formData int true "x"
-// @Param y formData int true "y"
-func (self *DevHandler) handleDevMouseUp(c *gin.Context) {
-	x, _ := strconv.Atoi(c.PostForm("x"))
-	y, _ := strconv.Atoi(c.PostForm("y"))
-	pc, udid := self.getPc(c)
-	if pc == nil {
-		c.HTML(http.StatusOK, "error", gin.H{
-			"text": "nok",
-		})
-		return
-	}
-
-	done := make(chan bool)
-
-	pc.doMouseUp(udid, x, y, func(uj.JNode, []byte) {
-		done <- true
-	})
-
-	<-done
-
-	c.HTML(http.StatusOK, "error", gin.H{
-		"text": "ok",
-	})
-}
-
-// @Summary Device - Hard press coordinate
-// @Router /device/hardPress [POST]
-// @Param udid formData string true "Device UDID"
-// @Param x formData int true "x"
-// @Param y formData int true "y"
-func (self *DevHandler) handleDevHardPress(c *gin.Context) {
-	x, _ := strconv.Atoi(c.PostForm("x"))
-	y, _ := strconv.Atoi(c.PostForm("y"))
-	pc, udid := self.getPc(c)
-	if pc == nil {
-		c.HTML(http.StatusOK, "error", gin.H{
-			"text": "nok",
-		})
-		return
-	}
-
-	pc.doHardPress(udid, x, y)
-}
-
-// @Summary Device - Long Press coordinate
-// @Router /device/longPress [POST]
-// @Param udid formData string true "Device UDID"
-// @Param x formData int true "x"
-// @Param y formData int true "y"
-func (self *DevHandler) handleDevLongPress(c *gin.Context) {
-	x, _ := strconv.Atoi(c.PostForm("x"))
-	y, _ := strconv.Atoi(c.PostForm("y"))
-	time, _ := strconv.ParseFloat(c.PostForm("time"), 64)
-
-	pc, udid := self.getPc(c)
-	if pc == nil {
-		c.HTML(http.StatusOK, "error", gin.H{
-			"text": "nok",
-		})
-		return
-	}
-
-	done := make(chan bool)
-
-	pc.doLongPress(udid, x, y, time, func(uj.JNode, []byte) {
-		done <- true
-	})
-
-	<-done
-
-	c.HTML(http.StatusOK, "error", gin.H{
-		"text": "ok",
-	})
-}
-
-// @Summary Device click
-// @Router /device/home [POST]
-// @Param udid formData string true "Device UDID"
-func (self *DevHandler) handleDevHome(c *gin.Context) {
-	//udid := c.PostForm("udid")
-	pc, udid := self.getPc(c)
-	if pc == nil {
-		c.HTML(http.StatusOK, "error", gin.H{
-			"text": "nok",
-		})
-		return
-	}
-
-	done := make(chan bool)
-
-	pc.doHome(udid, func(uj.JNode, []byte) {
-		done <- true
-	})
-
-	<-done
-
-	c.HTML(http.StatusOK, "error", gin.H{
-		"text": "ok",
-	})
-}
-
-// @Summary Device task switcher
-// @Router /device/taskSwitcher [POST]
-// @Param udid formData string true "Device UDID"
-func (self *DevHandler) handleDevTaskSwitcher(c *gin.Context) {
-	pc, udid := self.getPc(c)
-	if pc == nil {
-		c.HTML(http.StatusOK, "error", gin.H{
-			"text": "nok",
-		})
-		return
-	}
-
-	done := make(chan bool)
-
-	pc.doTaskSwitcher(udid, func(uj.JNode, []byte) {
-		done <- true
-	})
-
-	<-done
-
-	c.HTML(http.StatusOK, "error", gin.H{
-		"text": "ok",
-	})
-}
-
-// @Summary Device shake
-// @Router /device/shake [POST]
-// @Param udid formData string true "Device UDID"
-func (self *DevHandler) handleDevShake(c *gin.Context) {
-	pc, udid := self.getPc(c)
-	if pc == nil {
-		c.HTML(http.StatusOK, "error", gin.H{
-			"text": "nok",
-		})
-		return
-	}
-
-	done := make(chan bool)
-
-	pc.doShake(udid, func(uj.JNode, []byte) {
-		done <- true
-	})
-
-	<-done
-
-	c.HTML(http.StatusOK, "error", gin.H{
-		"text": "ok",
-	})
-}
-
-// @Summary Device control center
-// @Router /device/cc [POST]
-// @Param udid formData string true "Device UDID"
-func (self *DevHandler) handleDevCC(c *gin.Context) {
-	pc, udid := self.getPc(c)
-	if pc == nil {
-		c.HTML(http.StatusOK, "error", gin.H{
-			"text": "nok",
-		})
-		return
-	}
-
-	done := make(chan bool)
-
-	pc.doCC(udid, func(uj.JNode, []byte) {
-		done <- true
-	})
-
-	<-done
-
-	c.HTML(http.StatusOK, "error", gin.H{
-		"text": "ok",
-	})
-}
-
-// @Summary Device assistive touch
-// @Router /device/assistiveTouch [POST]
-// @Param udid formData string true "Device UDID"
-func (self *DevHandler) handleDevAssistiveTouch(c *gin.Context) {
-	pc, udid := self.getPc(c)
-	if pc == nil {
-		c.HTML(http.StatusOK, "error", gin.H{
-			"text": "nok",
-		})
-		return
-	}
-
-	done := make(chan bool)
-
-	pc.doAssistiveTouch(udid, func(uj.JNode, []byte) {
-		done <- true
-	})
-
-	<-done
-
-	c.HTML(http.StatusOK, "error", gin.H{
-		"text": "ok",
-	})
-}
-
-// @Summary Device - Swipe
-// @Router /device/swipe [POST]
-// @Param udid formData string true "Device UDID"
-// @Param x1 formData int true "x1"
-// @Param y1 formData int true "y1"
-// @Param x2 formData int true "x2"
-// @Param y2 formData int true "y2"
-// @Param delay formData number true "Time of swipe"
-func (self *DevHandler) handleDevSwipe(c *gin.Context) {
-	x1, _ := strconv.Atoi(c.PostForm("x1"))
-	y1, _ := strconv.Atoi(c.PostForm("y1"))
-	x2, _ := strconv.Atoi(c.PostForm("x2"))
-	y2, _ := strconv.Atoi(c.PostForm("y2"))
-	delay, _ := strconv.ParseFloat(c.PostForm("delay"), 64)
-	pc, udid := self.getPc(c)
-	if pc == nil {
-		c.HTML(http.StatusOK, "error", gin.H{
-			"text": "nok",
-		})
-		return
-	}
-
-	done := make(chan bool)
-
-	pc.doSwipe(udid, x1, y1, x2, y2, delay, func(uj.JNode, []byte) {
-		done <- true
-	})
-
-	<-done
-
-	c.HTML(http.StatusOK, "error", gin.H{
-		"text": "ok",
-	})
-}
-
-// @Summary Device - Simulate keystrokes
-// @Router /device/keys [POST]
-// @Param udid formData string true "Device UDID"
-// @Param curid formData int true "Incrementing unique ID"
-// @Param keys formData string true "Keys"
-// @Param prevkeys formData string true "Previous keys"
-func (self *DevHandler) handleKeys(c *gin.Context) {
-	keys := c.PostForm("keys")
-	curid, _ := strconv.Atoi(c.PostForm("curid"))
-	prevkeys := c.PostForm("prevkeys")
-
-	done := make(chan bool)
-
-	pc, udid := self.getPc(c)
-	if pc == nil {
-		c.HTML(http.StatusOK, "error", gin.H{
-			"text": "nok",
-		})
-		return
-	}
-
-	pc.doKeys(udid, keys, curid, prevkeys, func(uj.JNode, []byte) {
-		done <- true
-	})
-
-	<-done
-
-	c.HTML(http.StatusOK, "error", gin.H{
-		"text": "ok",
-	})
-}
-
-// @Summary Device - Simulate entering a block of text
-// @Router /device/text [POST]
-// @Param udid formData string true "Device UDID"
-// @Param text formData string true "Text to enter"
-func (self *DevHandler) handleText(c *gin.Context) {
-	text := c.PostForm("text")
-
-	done := make(chan bool)
-
-	pc, udid := self.getPc(c)
-	if pc == nil {
-		c.HTML(http.StatusOK, "error", gin.H{
-			"text": "nok",
-		})
-		return
-	}
-
-	pc.doText(udid, text, func(uj.JNode, []byte) {
-		done <- true
-	})
-
-	<-done
-
-	c.HTML(http.StatusOK, "error", gin.H{
-		"text": "ok",
-	})
-}
-
 func (self *DevHandler) handleWebrtc(c *gin.Context) {
 	pc, udid := self.getPc(c)
 	if pc == nil {
@@ -986,58 +540,13 @@ func (self *DevHandler) handleWebrtc(c *gin.Context) {
 
 	done := make(chan bool)
 
-	pc.initWebrtc(udid, offer, func(_ uj.JNode, raw []byte) {
+	pc.initWebrtc(udid, offer, func(cfresponse CFResponse) {
 		c.Writer.Header().Set("Content-Type", "text/json; charset=utf-8")
 		c.Writer.WriteHeader(200)
-		c.Writer.Write(raw)
-		done <- true
-	})
-
-	<-done
-}
-
-// @Summary Device - Get device source
-// @Router /device/source [GET]
-// @Param udid formData string true "Device UDID"
-func (self *DevHandler) handleSource(c *gin.Context) {
-	pc, udid := self.getPc(c)
-	if pc == nil {
-		c.HTML(http.StatusOK, "error", gin.H{
-			"text": "nok",
-		})
-		return
-	}
-
-	done := make(chan bool)
-
-	pc.doSource(udid, func(_ uj.JNode, raw []byte) {
-		c.Writer.Header().Set("Content-Type", "text/json; charset=utf-8")
-		c.Writer.WriteHeader(200)
-		c.Writer.Write(raw)
-		done <- true
-	})
-
-	<-done
-}
-
-// @Summary Device - List device restricted apps
-// @Router /device/listRestrictedApps [GET]
-// @Param udid formData string true "Device UDID"
-func (self *DevHandler) handleDevListRestrictedApps(c *gin.Context) {
-	pc, udid := self.getPcGET(c)
-	if pc == nil {
-		c.HTML(http.StatusOK, "error", gin.H{
-			"text": "nok",
-		})
-		return
-	}
-
-	done := make(chan bool)
-
-	pc.doListRestrictedApps(udid, func(_ uj.JNode, raw []byte) {
-		c.Writer.Header().Set("Content-Type", "text/json; charset=utf-8")
-		c.Writer.WriteHeader(200)
-		c.Writer.Write(raw)
+		//TODO:  use cfresponse.Value for whatever data is needed here...
+		//TODO: need to json decode?
+		c.Writer.Write([]byte(cfresponse.StringValue()))
+		//        c.Writer.Write( raw )
 		done <- true
 	})
 
@@ -1056,7 +565,7 @@ func (self *DevHandler) handleShutdown(c *gin.Context) {
 		return
 	}
 
-	pc.doShutdown(func(_ uj.JNode, raw []byte) {})
+	pc.doShutdown(func(CFResponse) {})
 	self.devTracker.clearDevProv(udid)
 
 	// It will take at least 3 seconds to restart
@@ -1099,9 +608,6 @@ func (self *DevHandler) handleShutdown(c *gin.Context) {
 	c.Writer.Header().Set("Content-Type", "text/json; charset=utf-8")
 	c.Writer.WriteHeader(200)
 	c.Writer.Write([]byte("{success:false}"))
-}
-
-func (self *DevHandler) handleDevPing(c *gin.Context) {
 }
 
 // @Summary Device - Kick device user
@@ -1639,76 +1145,76 @@ func (self SyncResponse) String() string {
 // @Description Device - Device Command Websocket
 // @Router /device/ws [GET]
 // @Param udid query string true "Device UDID"
-func (self *DevHandler) handleDevWs(c *gin.Context) {
-	udid, uok := c.GetQuery("udid")
-	if !uok {
-		c.HTML(http.StatusOK, "error", gin.H{
-			"text": "no uuid set",
-		})
-		return
-	}
-
-	log.WithFields(log.Fields{
-		"type": "devws_start",
-		"udid": censorUuid(udid),
-	}).Info("Server <-> Client WS Connected")
-
-	writer := c.Writer
-	req := c.Request
-	conn, err := wsupgrader.Upgrade(writer, req, nil)
-	if err != nil {
-		fmt.Println("Failed to set websocket upgrade: %+v", err)
-		return
-	}
-
-	//abort := false
-
-	/*go func() {
-	    for {
-	        if abort { return }
-	        err := conn.WriteMessage("ping")
-	        if err != nil {
-	            abort = true
-	            break
-	        }
-	        time.Sleep( time.Second )
-	    }
-	}()*/
-
-	for {
-		//if abort { break }
-		t, msg, err := conn.ReadMessage()
-		if err != nil {
-			//abort = true
-			break
-		}
-		if t == ws.TextMessage {
-			//tMsg := string( msg )
-			b1 := []byte{msg[0]}
-			if string(b1) == "{" {
-				root, _ := uj.Parse(msg)
-				id := root.Get("id").Int()
-				mType := root.Get("type").String()
-				var resp WsResponse
-				if mType == "timesync" {
-					resp = SyncResponse{id: id}
-				}
-				if resp != nil {
-					respStr := resp.String()
-					err := conn.WriteMessage(ws.TextMessage, []byte(respStr))
-					if err != nil {
-						fmt.Printf("Error writing to ws\n")
-					}
-				}
-			}
-		}
-	}
-
-	log.WithFields(log.Fields{
-		"type": "devws_stop",
-		"udid": censorUuid(udid),
-	}).Info("Server <-> Client WS Disconnected")
-}
+//func (self *DevHandler) handleDevWs( c *gin.Context ) {
+//    udid, uok := c.GetQuery("udid")
+//    if !uok {
+//        c.HTML( http.StatusOK, "error", gin.H{
+//            "text": "no uuid set",
+//        } )
+//        return
+//    }
+//
+//    log.WithFields( log.Fields{
+//        "type": "devws_start",
+//        "udid": censorUuid( udid ),
+//    } ).Info("Server <-> Client WS Connected")
+//
+//    writer := c.Writer
+//    req := c.Request
+//    conn, err := wsupgrader.Upgrade( writer, req, nil )
+//    if err != nil {
+//        fmt.Println("Failed to set websocket upgrade: %+v", err)
+//        return
+//    }
+//
+//    //abort := false
+//
+//    /*go func() {
+//        for {
+//            if abort { return }
+//            err := conn.WriteMessage("ping")
+//            if err != nil {
+//                abort = true
+//                break
+//            }
+//            time.Sleep( time.Second )
+//        }
+//    }()*/
+//
+//    for {
+//        //if abort { break }
+//        t, msg, err := conn.ReadMessage()
+//        if err != nil {
+//            //abort = true
+//            break
+//        }
+//        if t == ws.TextMessage {
+//            //tMsg := string( msg )
+//            b1 := []byte{ msg[0] }
+//            if string(b1) == "{" {
+//                root, _ := uj.Parse( msg )
+//                id := root.Get("id").Int()
+//                mType := root.Get("type").String()
+//                var resp WsResponse
+//                if mType == "timesync" {
+//                    resp = SyncResponse{id:id}
+//                }
+//                if resp != nil {
+//                    respStr := resp.String()
+//                    err := conn.WriteMessage( ws.TextMessage, []byte( respStr ) )
+//                    if err != nil {
+//                        fmt.Printf("Error writing to ws\n")
+//                    }
+//                }
+//            }
+//        }
+//    }
+//
+//    log.WithFields( log.Fields{
+//        "type": "devws_stop",
+//        "udid": censorUuid( udid ),
+//    } ).Info("Server <-> Client WS Disconnected")
+//}
 
 // @Description Device - Device Notices Websocket
 // @Router /device/notices [GET]
@@ -1740,14 +1246,58 @@ func (self *DevHandler) handleDevNotices(c *gin.Context) {
 		socket: conn,
 	})
 
+	provId := self.devTracker.getDevProvId(udid)
+	provConn := self.devTracker.getProvConn(provId)
+
+	//TODO: replace function with channel
+	replyOverWebsocket := func(cfresponse CFResponse) {
+		bytes, _ := json.Marshal(cfresponse)
+		err := conn.WriteMessage(ws.TextMessage, bytes)
+		if err != nil {
+			fmt.Printf("Error writing to ws\n")
+		} else {
+			fmt.Printf("Response forwarded to browser: Action: %s Status: %s", cfresponse.MessageType, cfresponse.Status)
+		}
+	}
+
 	for {
-		//if abort { return }
-		_, _, err := conn.ReadMessage()
+		t, msg, err := conn.ReadMessage()
 		if err != nil {
 			//abort = true
 			break
 		}
-		time.Sleep(time.Second)
+		if t == ws.TextMessage {
+			//tMsg := string( msg )
+			b1 := []byte{msg[0]}
+			if string(b1) == "{" {
+				cfrequest, err := NewExternalCFRequestFromJSON(msg) //json.Unmarshal([]byte(msg),&message);
+				if err != nil {
+					fmt.Println(err)
+				}
+				//                action := message.Action
+				fmt.Printf("Received message:msg %s\n", string(msg))
+
+				cfrequest.CFDeviceID = udid
+				cfrequest.onRes = replyOverWebsocket
+				//TODO: request tracker expects an ack for everything
+				//need to switch to a channel model for websockets and drop the
+				//function callback
+				cfrequest.RequiresResponse = true
+				provConn.provChan <- cfrequest
+
+				//                var resp WsResponse
+				//                if action == "timesync" {
+				//                    resp = SyncResponse{id:id}
+				//                }
+				//                if resp != nil {
+				//                    respStr := resp.String()
+				//                    err := conn.WriteMessage( ws.TextMessage, []byte( respStr ) )
+				//                    if err != nil {
+				//                        fmt.Printf("Error writing to ws\n")
+				//                    }
+				//                }
+			}
+		}
 	}
 
 	// TODO on connection stop

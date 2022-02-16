@@ -85,6 +85,35 @@
   }
 </style>
 <script>
+  // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/code/code_values
+  var specialKeys = {
+    "Backspace" : 1,
+   // "Enter"     : 1, //Captured with regular text, \n, \t
+   // "Tab"       : 1,
+    "Escape"    : 1,
+    "ArrowUp"   : 1,
+    "ArrowDown" : 1,
+    "ArrowLeft" : 1,
+    "ArrowRight": 1,
+    "PageDown"  : 1,
+    "PageUp"    : 1,
+    "End"       : 1,
+    "Home"      : 1,
+    "Delete"      : 1,
+   // "F1"  : 1,  //Uncomment to send to device 
+   // "F2"  : 1,
+   // "F3"  : 1,
+   // "F4"  : 1,
+   // "F5"  : 1,
+   // "F6"  : 1,
+   // "F7"  : 1,
+   // "F8"  : 1,
+   // "F9"  : 1,
+   // "F10" : 1,
+   // "F11" : 1,
+   // "F12" : 1,
+  };
+
   function getel( id ) {
     return document.getElementById( id );
   }
@@ -99,12 +128,30 @@
     var node = ntext( text );
     parent.appendChild( node );
   }
-  function getCursorPosition(canvas, event) {
+  function getEventCoordinatesOnCanvas(canvas, event) {
     const rect = canvas.getBoundingClientRect()
     const x = event.clientX - rect.left
     const y = event.clientY - rect.top
     console.log("x: " + x + " y: " + y)
     return [x,y];
+  } 
+  function getEventCoordinatesOnDevice(canvas, event) {
+    let [x,y] = getEventCoordinatesOnCanvas(canvas,event);
+    x = Math.floor( x*clickWid/displayWid );
+    y = Math.floor( y*clickHeg/displayHeg );
+    return [x,y];
+  }
+  function sendCFRequest(action,args){
+      let request = {action:action,tag:sequenceNumber,args:args}
+      sequenceNumber++;
+      wait();
+      commandSocket.send(JSON.stringify(request));
+  }
+  function sendTapOrClickCFRequest(canvas, event, action, args = {}){
+      let [x,y] = getEventCoordinatesOnDevice(canvas,event);
+      args['x'] = x;
+      args['y'] = y;
+      sendCFRequest(action,args);
   }
   function _replace(node,rep) {
     node.parentNode.replaceChild(rep,node);
@@ -147,12 +194,14 @@
   var gone = 0;
   var rid="{{ html .rid }}";
   var idleTimeout = "{{ html .idleTimeout }}" * 1;
-  var keyid = 0;
-  var mouseDownDate;
+  var sequenceNumber = 1;
   var mouseUpDate;
   var info = JSON.parse( {{ html .rawInfo }} );
   var notestext = {{ html .notes }};
   var notesjson = JSON.parse( notestext );
+  var commandSocket = null;
+  var mouseDownEvent; //used for longpress long press tapTime decisions
+  var mouseDownDate;  //used to time long presses
   
   if( vidHeg < maxHeg ) {
     displayHeg = vidHeg;
@@ -183,11 +232,22 @@
     else xhr.send();
   }
   
+  setTimeout( function() {
+      ta.value = "";
+  }, 10 );
+
+  var waitTimeout = null;
+  function activateSpinner(){
+      var waiter = getel("waiter");
+      waiter.className = "m-spinner--swirl";
+      waitTimeout = null;
+  }
   var waitnum = 0;
   function wait() {
     if( !waitnum ) {
-      var waiter = getel("waiter");
-      waiter.className = "m-spinner--swirl";
+        if(!waitTimeout){
+            waitTimeout = setTimeout(activateSpinner,1000);
+        }
     }
     waitnum++;
   }
@@ -196,67 +256,12 @@
     if( !waitnum ) {
       var waiter = getel("waiter");
       waiter.className = "m-spinner--swirl hidden";
+      if(waitTimeout){
+          clearTimeout(waitTimeout);
+      }
     }
   }
   
-  function clickAt( pos ) {
-    var x = Math.floor( (pos[0]/displayWid)*clickWid ); 
-    var y = Math.floor( (pos[1]/displayHeg)*clickHeg );
-    wait();
-    req( 'POST', base + '/device/click', function() {
-      unwait();
-    }, { udid, x, y } );
-  }
-  function dblClick( pos ) {
-    var x = Math.floor( (pos[0]/displayWid)*clickWid ); 
-    var y = Math.floor( (pos[1]/displayHeg)*clickHeg );
-    wait();
-    req( 'POST', base + '/device/doubleclick', function() {
-      unwait();
-    }, { udid, x, y } );
-  }
-  function doMouseDown( pos ) {
-    var x = Math.floor( (pos[0]/displayWid)*clickWid ); 
-    var y = Math.floor( (pos[1]/displayHeg)*clickHeg );
-    wait();
-    req( 'POST', base + '/device/mouseDown', function() {
-      unwait();
-    }, { udid, x, y } );
-  }
-  function doMouseUp( pos ) {
-    var x = Math.floor( (pos[0]/displayWid)*clickWid ); 
-    var y = Math.floor( (pos[1]/displayHeg)*clickHeg );
-    wait();
-    req( 'POST', base + '/device/mouseUp', function() {
-      unwait();
-    }, { udid, x, y } );
-  }
-  function doHardPress( pos ) {
-    var x = Math.floor( (pos[0]/displayWid)*clickWid ); 
-    var y = Math.floor( (pos[1]/displayHeg)*clickHeg );
-    wait();
-    req( 'POST', base + '/device/hardPress', function() {
-      unwait();
-    }, { udid, x, y } );
-  }
-  function doLongPress( pos, time ) {
-    var x = Math.floor( (pos[0]/displayWid)*clickWid ); 
-    var y = Math.floor( (pos[1]/displayHeg)*clickHeg );
-    wait();
-    req( 'POST', base + '/device/longPress', function() {
-      unwait();
-    }, { udid, x, y, time } );
-  }
-  function swipe( pos1, pos2, delay ) {
-    var x1 = Math.floor( (pos1[0]/displayWid)*clickWid ); 
-    var y1 = Math.floor( (pos1[1]/displayHeg)*clickHeg );
-    var x2 = Math.floor( (pos2[0]/displayWid)*clickWid ); 
-    var y2 = Math.floor( (pos2[1]/displayHeg)*clickHeg );
-    wait();
-    req( 'POST', base + '/device/swipe', function() {
-      unwait();
-    }, { udid, x1, y1, x2, y2, delay } );    
-  }
   function doShutdown() {
     wait();
     req( 'POST', base + '/device/shutdown', function() {
@@ -270,54 +275,11 @@
   var keyqueue = [];
   var prevKeys = [];
   var inRequest = 0;
-  var pos1;
-  /*
-  sendKeys has been hacked up a bunch since it was originally written.
-  Right now it is sending a single key at a time and waiting for that
-  call to complete before sending another key.
-  
-  This is done to prevent concurrency from causing keys to be entered
-  out of typing order.
-  
-  There is additional information being sent that is not needed currently
-  that could be used to be extremely sure keys are never sent out of order.
-  
-  This function can still be improved some more, as if keys are backed up
-  and waiting to be sent we could send more than a single key at once.
-  
-  The backend doesn't handle doing that as well as desired so that is
-  avoided currently.
-  */
-  function sendKeys() {
-    if( !keyqueue.length || inRequest ) return;
-    //var keys = keyqueue.join("");
-    var keyOb = keyqueue.shift();
-    
-    //keyqueue = [];
-    inRequest = 1;
-    wait();
-    req( 'POST', base + '/device/keys', function() {
-      unwait();
-      inRequest = 0;
-      if( keyqueue.length ) sendKeys();
-    }, {
-      udid: udid,
-      keys: keyOb.keycode,
-      curid: keyOb.keyid,
-      prevkeys: prevKeys.join("")
-    } );
-    prevKeys.unshift( keyOb.keyid );
-    while( prevKeys.length > 5 ) prevKeys.pop();
-  }
-  
+
   function sendText( text ) {
-    wait();
-    req( 'POST', base + '/device/text', function() {
-      unwait();
-    }, {
-      udid: udid,
-      text: text
-    } );
+    sendCFRequest("typeText",{
+        "text":text
+    });
   }
   
   function setOrientation( o ) {
@@ -354,20 +316,7 @@
   }
   
   var mode = 'normal';
-  var capture  = {}; // onkeydown
   var capture2 = {}; // onkeypress
-  capture[-8] = -8; // backspace
-  capture[-9] = -9; // tab
-  capture[-13] = -13; // enter
-  capture[-34] = -34; // pagedown
-  capture[-33] = -33; // pageup
-  capture[-35] = -35; // end
-  capture[-36] = -36; // home
-  capture[-37] = -37; // left
-  capture[-38] = -38; // up
-  capture[-39] = -39; // right
-  capture[-40] = -40; // down
-  capture[-46] = -46; // delete
   
   //capture[68] = 68; // delete; map to ascii delete
   capture2[39] = 39; // ' - quick search in firefox
@@ -391,9 +340,7 @@
     //var vectorBtn = getel("vectorBtn");
     var under     = getel("under");
     var vidbox    = getel("vidbox");
-    var ws;
-    var cmdWs;
-    var recvWs;
+    var videoSocket;
     var loading   = getel("loading");
     var notesbox  = getel("notes");
     var shutdown  = getel("shutdown");
@@ -446,25 +393,10 @@
     
     var idleSeconds = 0;
     
-    /*
-    //vidbox.style.width  = ( displayWid + 100 ) + "px";
-    canvas.width      = displayWid;
-    canvas.height     = displayHeg;
-    ta.style.width = displayWid + "px";
-    ta.style.height = displayHeg + "px";
-    getel("mid").style.width = displayWid + "px";
-    under.style.top = displayHeg + "px";
-    under.style.width = displayWid + "px";
-    //loading.style.left = ( displayWid / 2 -50 ) + "px";
-    //loading.style.top = ( displayHeg / 2 - 50 ) + "px";
-    */
     setOrientation( orientation );
     
     home.onclick = function( event ) {
-      wait();
-      req( 'POST', '/device/home', function() {
-        unwait();
-      }, { udid } );  
+      sendCFRequest("simulateHomeButton",{});
     }
     /*taskBtn.onclick = function( event ) {
       wait();
@@ -479,16 +411,10 @@
       }, { udid } );  
     }*/
     ccBtn.onclick = function( event ) {
-      wait();
-      req( 'POST', '/device/cc', function() {
-        unwait();
-      }, { udid } );  
+      sendCFRequest("showControlCenter",{});
     }
     atBtn.onclick = function( event ) {
-      wait();
-      req( 'POST', '/device/assistiveTouch', function() {
-        unwait();
-      }, { udid } );  
+      sendCFRequest("toggleAssistiveTouch",{});
     }
     hardPress.onclick = function( event ) {
       if( mode != 'hard' ) {
@@ -532,7 +458,7 @@
       var ok = confirm("This will shutdown/reset the device provider. Are you sure?");
       if( ok ) {
         videoStop();
-        if( ws ) ws.close();
+        if( videoSocket ) videoSocket.close();
         doShutdown();
       }
     }
@@ -544,158 +470,164 @@
     
     ta.onmousedown = function( event ) {
       mouseDownDate = new Date();
-      var pos = getCursorPosition( canvas, event );
-      if( mode == 'hard' ) doHardPress( pos );
-      else if( mode == 'vector' ) doMouseDown( pos );
-      else                      pos1 = pos;
+      if( mode == 'hard' ){
+          sendTapOrClickCFRequest(canvas, event, "tapFirm");
+      }
+      else if( mode == 'vector' ){
+          sendTapOrClickCFRequest(canvas, event, "mouseDown");
+      }
+      else{
+          mouseDownEvent = event ; //pos1 = pos;
+      }
     }
     
     ta.onmouseup = function( event ) {
-      if( mode == 'vector' ) {
-        var pos = getCursorPosition( canvas, event );
-        doMouseUp( pos );
-        return;
-      }
-      if( !mouseDownDate ) {
-        alert("Cannot swipe from offscreen onto the screen");
-        return;
-      }
-      if( mode != 'normal' && mode != "long" ) return;
-      mouseUpDate = new Date();
-      var msDiff = mouseUpDate - mouseDownDate;
+      let prevMouseDownEvent = mouseDownEvent;
+      let prevMouseDownDate = mouseDownDate;
+
+      mouseDownEvent = null;
       mouseDownDate = 0;
-      var sDiff = msDiff / 1000;
+
+      if( mode == 'vector' ) {
+          sendTapOrClickCFRequest( canvas, event, "mouseUp" );
+          return;
+      }
+      if( !prevMouseDownDate ) { //mouseUp is meaningless unless corresponding mouseDown was on the canvas
+          console.log("Cannot swipe from offscreen onto the screen");
+          return;
+      }
+      if( mode != 'normal' && mode != "long" ) {
+          return; //handled elsewhere as a click/tap
+      }
+
+      //swipe or long press
+      let mouseUpDate = new Date();
+      let msDiff = mouseUpDate - prevMouseDownDate;
+      let sDiff = msDiff / 1000;
       sDiff = Math.floor( sDiff * 100 ) / 100; // .00 resolution
-      var pos2 = getCursorPosition( canvas, event );
       
       if( mode == 'long' ) {
-        doLongPress( pos1, sDiff );
-        return;
+          sendTapOrClickCFRequest(canvas, prevMouseDownEvent , "tap", { "duration":sDiff }); //aka longPress
+          return;
       }
       
-      var dx = Math.abs( pos2[0] - pos1[0] );
-      var dy = Math.abs( pos2[1] - pos1[1] );
-      if( dx > 3 || dy > 3 ) {
-        swipe( pos1, pos2, sDiff );
+      const [x1,y1] = getEventCoordinatesOnDevice(canvas, prevMouseDownEvent);
+      const [x2,y2] = getEventCoordinatesOnDevice(canvas, event);
+      const dx = Math.abs( x2 - x1 );
+      const dy = Math.abs( y2 - y1 );
+
+      if( dx  >= 40 || dy >= 40 ) { //TODO: twiddle 
+        sendCFRequest("swipe", {
+            path:[
+                {x:x1,y:y1},
+                {x:x2,y:y2,offset:sDiff},
+            ]
+        });
+//        sendCFRequest("swipe", {
+//            x1: x1,
+//            y1: y1,
+//            x2: x2,
+//            y2: y2,
+//            duration:sDiff
+//        });
       } else if( sDiff > 0.2 ) {
-        doLongPress( pos1, sDiff );
+          sendTapOrClickCFRequest(canvas, prevMouseDownEvent, "tap", { "duration":sDiff }); //aka longPress
       }
-      else clickAt( pos1 );
+      else {  //didn't take that long and barely moved.  
+          //If >=2 , this was a double-tap, triple tap, etc...
+          //Without this check, the sequence is click1, click2, doubleClick
+          //With the check, click doubleClick. TODO: handle tripleclick?
+          if(event.detail == 1){ 
+              sendTapOrClickCFRequest (canvas, event, "tap");
+          }
+      }
     }
     
     ta.ondblclick = function( event ) {
-      var pos = getCursorPosition( canvas, event );
-      dblClick( pos );
+        sendTapOrClickCFRequest(canvas, event, "doubleTap");
     }
     
-    ta.onchange = function() {
-      
+//    ta.onchange = function() {
+    ta.oninput = function(event) {
+        if(event.isComposing){
+            return;
+        }
+        var text = ta.value;
+        if(!text){
+            return true;
+        }  
+        sendText(text);
+        console.log(text);
+        ta.value = "";
+return true;
     }
     
     ta.onkeydown = function( event ) {
-      var key = event.key;
-      if( key == "Shift" ) return;
-      if( key.length==1 ) key = key.charCodeAt(0);
-      else key = -event.keyCode;
-      
-      if( capture[ key ] ) {
-        key = capture[ key ];
-        event.preventDefault();
-        keyqueue.push( {
-          keycode: key,
-          keyid: keyid
-        } );
-        keyid++;
-        sendKeys();
-      }
-      else console.log( "key " + key );
-      
-      setTimeout( function() {
-          ta.value = "";
-      }, 10 );
+        if(event.isComposing){ //IME input (Japanese, etc)
+            return;
+        }
+        if(specialKeys[event.code]){
+            sendCFRequest("typeSpecialKey",{key:event.code});
+        }
     }
     
     ta.onkeypress = function( event ) {
-      var key = event.key;
-      
-      if( key.length==1 ) key = key.charCodeAt(0);
-      else key = -event.keyCode;
-      
-      keyqueue.push( {
-        keycode: key,
-        keyid: keyid
-      } );
-      keyid++;
-      sendKeys();
-      if( capture2[ key ] ) {
-        event.preventDefault();
-      } else console.log( "key2 " + key );
+//Maybe?
+//      if( capture2[ key ] ) {
+//        event.preventDefault();
+//      } else console.log( "key2 " + key );
     }
     
-    ta.onpaste = function(e) {
+    ta.onpaste = function(event) {
       var text = "";
-      if( e.clipboardData && e.clipboardData.getData ) {
-        text = e.clipboardData.getData('text/plain');
+      if( event.clipboardData && event.clipboardData.getData ) {
+        text = event.clipboardData.getData('text/plain');
       }
       if( text == "" ) return false;
       sendText( text );
       return false;
     }
     
-    var wsprot = ( document.location.protocol == 'https:' ) ? "wss" : "ws"; 
-    
-    var cmdUrl = wsprot+"://"+document.location.host+"/device/ws?udid={{ html .udid }}&rid={{ html .rid }}";
-    cmdWs = new WebSocket( cmdUrl );
-    cmdWs.onmessage = function( event ) {
-        var data = event.data;
-        if( typeof data === 'string' ) {
-            var l1 = data[0];
-            if( l1 == '{' ) {
-                var json = JSON.parse( data );
-                var type = json.type;
-                if( type == "orientation" ) {
-                    console.log( data );
-                }
-            } else {
-                if( data == "ping" ) {
-                    console.log("ping");
-                }
-            }
-        }
-    }
-    
+    var wsprot = ( document.location.protocol == 'https:' ) ? "wss" : "ws";
+ 
     var recvUrl = wsprot+"://"+document.location.host+"/device/notices?udid={{ html .udid }}&rid={{ html .rid }}";
-    recvWs = new WebSocket( recvUrl );
-    recvWs.onmessage = function( event ) {
+    commandSocket = new WebSocket( recvUrl );
+    commandSocket.onmessage = function( event ) {
         var data = event.data;
         if( typeof data === 'string' ) {
-            var l1 = data[0];
-            if( l1 == '{' ) {
-                var json = JSON.parse( data );
-                var type = json.type;
-                if( type == "orientation" ) {
-                    console.log( data );
-                    var o = json.orientation;
+            var message = JSON.parse (data); 
+            if(message.type!="notice"){ //only messages currently are notices and acknowledgements for sent requests
+                unwait();
+            }
+            else{
+                if(message.status=="ORIENTATION_CHANGED"){
+                    //console.log( data );
+                    var o = message.value;
                     setOrientation( o );
                 }
-            } else {
-                if( data == "ping" ) {
-                    console.log("ping");
+                //TODO: should we let the server ping us?
+                //this is a placeholder, currently message.action reflects our original action
+                //so when we send a "ping" we get back a "ping" with a value of "pong" 
+                //Maybe that should change.  Should probably have a protocol for the server
+                //pinging us...
+                else if(response.status=="PING"){
+                    //Unimplemented, untested (server not currently sending pings)
+                    sendCFRequest("pong",{})
                 }
             }
         }
     }
     
     var url = wsprot+"://"+document.location.host+"/device/imgStream?udid={{ html .udid }}&rid={{ html .rid }}";
-    ws = new WebSocket( url );
-    ws.onopen = function( event ) {
+    videoSocket = new WebSocket( url );
+    videoSocket.onopen = function( event ) {
         console.log("Websocket open");
     }
-    ws.onclose = function( event ) {
+    videoSocket.onclose = function( event ) {
         console.log("Websocket closed");
-        ws = null;
+        videoSocket = null;
     }
-    ws.onmessage = function( event ) {
+    videoSocket.onmessage = function( event ) {
         if( event.data instanceof Blob ) {
           var recvTime = new Date().getTime();
           var image = new Image();
@@ -736,7 +668,7 @@
                   sizes = [];
                   times = [];
                   var avgFrame = Math.floor( totSize / 5 );
-                  ws.send( "{\"bps\":\"" + bps + "\",\"avgFrame\":\"" + avgFrame + "\"}" );
+                  videoSocket.send( "{\"bps\":\"" + bps + "\",\"avgFrame\":\"" + avgFrame + "\"}" );
               }
           } );
           
@@ -769,7 +701,7 @@
                             
                             var diff = ourTime - serverTime;
                             
-                            ws.send( "{\"clientTime\":\"" + ourTime + "\",\"sentTime\":\"" + serverTime + "\"}" );
+                            videoSocket.send( "{\"clientTime\":\"" + ourTime + "\",\"sentTime\":\"" + serverTime + "\"}" );
                             
                             //console.log( "latency + time offset = " + diff );
                         }
@@ -783,7 +715,7 @@
                         var ourTime = Date.now();//new Date().getTime();
                         var diff = ourTime - serverTime;
                             
-                        ws.send( "{\"clientTime\":\"" + ourTime + "\",\"sentTime\":\"" + serverTime + "\"}" );
+                        videoSocket.send( "{\"clientTime\":\"" + ourTime + "\",\"sentTime\":\"" + serverTime + "\"}" );
                         
                         console.log( "latency + time offset = " + diff );
                     }
@@ -792,14 +724,14 @@
             //console.log( event.data );
         }
     }
-    ws.onerror = function( event ) {
+    videoSocket.onerror = function( event ) {
         console.log( "Error: ", event.data );
     }
     if( idleTimeout ) {
       setInterval( function() {
         idleSeconds += 3;
         if( idleSeconds > idleTimeout ) {
-          ws.close();
+          if( videoSocket ) videoSocket.close();
           navigator.sendBeacon( "/device/videoStop?udid="+udid+"&rid="+rid, "" );
           alert("Inactivity timeout");
           document.location.href = '/';

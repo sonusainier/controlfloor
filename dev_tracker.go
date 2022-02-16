@@ -146,7 +146,9 @@ func (self *DevTracker) deleteClient(udid string) {
 }
 
 func (self *DevTracker) msgClient(udid string, msg ClientMsg) {
+	self.lock.Lock()
 	msgChan, chanOk := self.clients[udid]
+	self.lock.Unlock()
 	if !chanOk {
 		return
 	}

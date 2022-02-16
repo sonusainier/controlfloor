@@ -395,7 +395,8 @@ func (self *ProviderHandler) handleProviderWS(c *gin.Context) {
 		return
 	}
 
-	provChan := make(chan ProvBase)
+	//    provChan := make( chan ProvBase )
+	provChan := make(chan *CFRequest)
 	provConn := NewProviderConnection(provChan)
 	self.devTracker.setProvConn(provider.Id, provConn)
 	reqTracker := provConn.reqTracker
@@ -408,32 +409,43 @@ func (self *ProviderHandler) handleProviderWS(c *gin.Context) {
 	go func() {
 		for {
 			time.Sleep(time.Second * 5)
-			provConn.doPing(func(root uj.JNode, raw []byte) {
-				text := root.Get("text").String()
-				if text != "pong" {
-					amDone = true
-				}
-			})
+			//        provConn.doPing( func( root uj.JNode, raw []byte ) {
+			//            text := root.Get("text").String()
+			//            if text != "pong" {
+			//                amDone = true
+			//            }
+			//        } )
+			provChan <- &CFRequest{Action: "ping"}
 
-			if amDone {
-				if provChan != nil {
-					provChan <- nil
-				}
-				break
-			}
+			//        if amDone { if provChan != nil { provChan <- nil }; break }
 		}
 	}()
 
 	go func() {
 		for {
 			t, msg, err := conn.ReadMessage()
+			fmt.Println("Read message: %s", string(msg))
 			if err != nil {
 				amDone = true
 			} else {
-				jsonroot := reqTracker.processResp(t, msg)
-				if jsonroot != nil {
-					// This is not a response; is a request from provider
-
+				cfresponse := reqTracker.processResp(t, msg)
+				if cfresponse != nil {
+					if cfresponse.MessageType == "notice" && cfresponse.CFDeviceID != "" {
+						// This is not a response; is a request from provider
+						noticeConn := self.devTracker.getNoticeOutput(cfresponse.CFDeviceID)
+						devInfo := self.devTracker.getDevInfo(cfresponse.CFDeviceID)
+						fmt.Printf("Received Notice: %s\n", cfresponse.Status)
+						if cfresponse.Status == "ORIENTATION_CHANGED" {
+							devInfo.orientation = cfresponse.StringValue()
+						}
+						//TODO: thread safety warning.  I *think* we are in the same thread that is processing other responses at the moment...
+						if noticeConn != nil {
+							fmt.Printf("Forwarded Notice: %s\n", cfresponse.Status)
+							cfresponse.ClearRoutingData()
+							bytes, _ := cfresponse.JSONBytes()
+							noticeConn.socket.WriteMessage(ws.TextMessage, bytes)
+						}
+					}
 				}
 			}
 
