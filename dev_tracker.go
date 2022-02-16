@@ -14,31 +14,43 @@ type VidConn struct {
 	rid    string
 }
 
+type NoticeConn struct {
+	socket *ws.Conn
+}
+
 type DevStatus struct {
 	wda   bool
 	cfa   bool
 	video bool
 }
 
+type DevInfo struct {
+	orientation string
+}
+
 type DevTracker struct {
-	provConns map[int64]*ProviderConnection
-	devToProv map[string]int64
-	DevStatus map[string]*DevStatus
-	vidConns  map[string]*VidConn
-	clients   map[string]chan ClientMsg
-	lock      *sync.Mutex
-	config    *Config
+	provConns   map[int64]*ProviderConnection
+	devToProv   map[string]int64
+	DevStatus   map[string]*DevStatus
+	vidConns    map[string]*VidConn
+	DevInfo     map[string]*DevInfo
+	noticeConns map[string]*NoticeConn
+	clients     map[string]chan ClientMsg
+	lock        *sync.Mutex
+	config      *Config
 }
 
 func NewDevTracker(config *Config) *DevTracker {
 	self := &DevTracker{
-		provConns: make(map[int64]*ProviderConnection),
-		devToProv: make(map[string]int64),
-		lock:      &sync.Mutex{},
-		vidConns:  make(map[string]*VidConn),
-		DevStatus: make(map[string]*DevStatus),
-		clients:   make(map[string]chan ClientMsg),
-		config:    config,
+		provConns:   make(map[int64]*ProviderConnection),
+		devToProv:   make(map[string]int64),
+		lock:        &sync.Mutex{},
+		vidConns:    make(map[string]*VidConn),
+		noticeConns: make(map[string]*NoticeConn),
+		DevStatus:   make(map[string]*DevStatus),
+		DevInfo:     make(map[string]*DevInfo),
+		clients:     make(map[string]chan ClientMsg),
+		config:      config,
 	}
 
 	return self
@@ -57,7 +69,7 @@ func (self *DevTracker) delVidStreamOutput(udid string, rid string) {
 		onDone()
 		return
 	}
-	delete(self.vidConns, udid)
+	//delete( self.vidConns, udid )
 	self.lock.Unlock()
 }
 
@@ -77,6 +89,34 @@ func (self *DevTracker) setVidStreamOutput(udid string, vidConn *VidConn) {
 
 func (self *DevTracker) getVidStreamOutput(udid string) *VidConn {
 	return self.vidConns[udid]
+}
+
+func (self *DevTracker) delNoticeOutput(udid string, rid string) {
+	self.lock.Lock()
+	_, exists := self.noticeConns[udid]
+	if exists {
+		delete(self.noticeConns, udid)
+		// TODO: Something to cleanup
+	}
+	self.lock.Unlock()
+}
+
+func (self *DevTracker) setNoticeOutput(udid string, noticeConn *NoticeConn) {
+	self.lock.Lock()
+	_, exists := self.noticeConns[udid]
+	if exists {
+		// TODO: Something to cleanup the old one
+
+		self.noticeConns[udid] = noticeConn
+		self.lock.Unlock()
+		return
+	}
+	self.noticeConns[udid] = noticeConn
+	self.lock.Unlock()
+}
+
+func (self *DevTracker) getNoticeOutput(udid string) *NoticeConn {
+	return self.noticeConns[udid]
 }
 
 func (self *DevTracker) setDevProv(udid string, provId int64) {
@@ -130,6 +170,15 @@ func (self *DevTracker) setDevStatus(udid string, service string, status bool) {
 		stat.video = status
 		return
 	}
+}
+
+func (self *DevTracker) getDevInfo(udid string) *DevInfo {
+	devInfo, exists := self.DevInfo[udid]
+	if !exists {
+		devInfo = &DevInfo{}
+		self.DevInfo[udid] = devInfo
+	}
+	return devInfo
 }
 
 func (self *DevTracker) getDevStatus(udid string) *DevStatus {
