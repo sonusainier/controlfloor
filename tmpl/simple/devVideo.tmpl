@@ -590,7 +590,7 @@ return true;
     
     var wsprot = ( document.location.protocol == 'https:' ) ? "wss" : "ws";
  
-    var recvUrl = wsprot+"://"+document.location.host+"/device/notices?udid={{ html .udid }}&rid={{ html .rid }}";
+    var recvUrl = wsprot+"://"+document.location.host+"/device/webSocket?udid={{ html .udid }}&rid={{ html .rid }}";
     commandSocket = new WebSocket( recvUrl );
     commandSocket.onmessage = function( event ) {
         var data = event.data;
